@@ -2,16 +2,48 @@
   "name": "ghostty-web-shaderc",
   "version": "0.0.1",
   "description": "Runtime ShaderToy and Ghostty GLSL compiler for WebGPU and WebGL2",
-  "type": "module",
-  "license": "MIT",
-  "repository": { "type": "git", "url": "git+https://github.com/ShaulLavo/ghostty-web-shaderc.git" },
+  "keywords": [
+    "compiler",
+    "ghostty",
+    "glsl",
+    "shader",
+    "shadertoy",
+    "wasm",
+    "webgl",
+    "webgpu",
+    "wgsl"
+  ],
   "homepage": "https://github.com/ShaulLavo/ghostty-web-shaderc#readme",
-  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }, "./runtime": { "types": "./dist/runtime.d.ts", "default": "./dist/runtime.js" } },
-  "files": ["dist", "LICENSE", "README.md", "THIRD_PARTY_NOTICES.md"],
-  "publishConfig": { "access": "public" },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShaulLavo/ghostty-web-shaderc.git"
+  },
+  "bin": {
+    "ghostty-web-shaderc": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md",
+    "THIRD_PARTY_NOTICES.md",
+    "docs"
+  ],
+  "type": "module",
   "sideEffects": false,
-  "engines": { "node": ">=24.12" },
-  "packageManager": "bun@1.4.2",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "default": "./dist/runtime.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
@@ -20,8 +52,25 @@
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "prepack": "bun run build",
-    "verify": "bun run typecheck && bun run lint && bun run format:check && bun test ./test/unit && bun run build"
+    "verify": "bun run typecheck && bun run lint && bun run format:check && bun test ./test/unit && bun run build && bun run docs:check",
+    "test:package": "bun scripts/package-test.ts",
+    "test:browser": "bun scripts/browser-test.ts",
+    "docs:check": "bun scripts/uniform-reference.ts --check"
   },
-  "dependencies": { "naga-wasm": "30.2.0" },
-  "devDependencies": { "typescript": "7.0.2", "@types/bun": "^1.4.2", "@webgpu/types": "0.1.74", "oxlint": "1.85.0", "oxfmt": "0.70.0", "playwright": "1.63.0", "vite": "8.0.2" }
+  "dependencies": {
+    "naga-wasm": "30.2.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "@webgpu/types": "0.1.74",
+    "oxfmt": "0.70.0",
+    "oxlint": "1.85.0",
+    "playwright": "1.63.0",
+    "typescript": "7.0.2",
+    "vite": "8.0.2"
+  },
+  "engines": {
+    "node": ">=24.12"
+  },
+  "packageManager": "bun@1.4.2"
 }
