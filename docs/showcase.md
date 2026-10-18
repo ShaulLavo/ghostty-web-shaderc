@@ -27,6 +27,12 @@ entry module called by the showcase, and the generated panes display its returne
 The sample integration lives under `examples/showcase/`. Its post-processing adapter belongs
 to this example and is separate from the compiler package's runtime exports.
 
+The adapter coalesces terminal updates and animation ticks into one effect draw per browser frame.
+It allows one unfinished effect draw at a time, using WebGPU queue completion or a nonblocking
+WebGL2 fence. Pending changes render when the GPU is ready. Shader time follows elapsed active
+time, and frame uniforms describe the draws actually submitted. The bundled shaders and terminal
+resolution remain unchanged. A costly shader can still run at a lower frame rate on a slower GPU.
+
 The Regular entry is a local pass-through control. The [bundled shader manifest](../examples/showcase/SHADER_LICENSES.md) records authors,
 licenses, and the exact upstream revision. The five bundled examples come from
 [0xhckr/ghostty-shaders](https://github.com/0xhckr/ghostty-shaders).

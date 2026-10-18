@@ -3,9 +3,10 @@ import { access, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/p
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { compileGhosttyShader } from 'ghostty-web-shaderc'
+import { compileGhosttyShader, type CompiledGhosttyShader } from 'ghostty-web-shaderc'
 import { chromium } from 'playwright'
 import type { Browser, BrowserContext, Locator, Page } from 'playwright'
+import { installPacingProbe } from './showcase-pacing.js'
 
 const repository = dirname(dirname(fileURLToPath(import.meta.url)))
 const artifacts = join(repository, '.artifacts')
@@ -18,6 +19,9 @@ const exampleIds = [
   'cursor-lightning',
 ]
 const checks: string[] = []
+const pacingResults: object[] = []
+const pacingOnly = process.argv.includes('--pacing-only')
+type Backend = 'webgpu' | 'webgl2'
 type ExampleFile = 'entry' | 'source' | 'wgsl' | 'glsl'
 const exampleFiles: readonly ExampleFile[] = ['entry', 'source', 'wgsl', 'glsl']
 
@@ -487,6 +491,179 @@ async function verifyFallback(context: BrowserContext, url: string): Promise<voi
   }
 }
 
+function switchRegularDuringFireworks(minimumFrames: number): void {
+  const select = document.querySelector('#example-select')
+  const source = document.querySelector('[data-file="source"]')
+  if (!(select instanceof HTMLSelectElement) || !(source instanceof HTMLButtonElement))
+    throw new Error('Shader controls are missing')
+  const switchToRegular = () => {
+    const frame = window.showcasePacing.frames.at(-1)
+    if (frame?.shader !== 'fireworks') return
+    if (
+      window.showcasePacing.frames.filter((frame) => frame.shader === 'fireworks').length <
+      minimumFrames
+    )
+      return
+    window.removeEventListener('showcase-postprocess-frame', switchToRegular)
+    const unfinished = window.showcasePacing.unfinished
+    select.value = 'regular'
+    select.dispatchEvent(new Event('change', { bubbles: true }))
+    source.click()
+    if (source.getAttribute('aria-selected') !== 'true') throw new Error('Code tab did not respond')
+    window.showcasePacing.latestSelection = { heavyFrame: frame.id, unfinished }
+  }
+  window.addEventListener('showcase-postprocess-frame', switchToRegular)
+  select.value = 'fireworks'
+  select.dispatchEvent(new Event('change', { bubbles: true }))
+}
+
+async function waitForFreshRegular(page: Page, after: number): Promise<void> {
+  await page.waitForFunction(
+    (after) =>
+      window.showcasePacing.completed.some(
+        (frame) => frame.id > after && frame.shader === 'regular',
+      ),
+    after,
+  )
+}
+
+async function verifyPacedResize(page: Page, after: number): Promise<void> {
+  await page.setViewportSize({ width: 520, height: 460 })
+  await verifyTerminalFill(page)
+  await page.waitForFunction((after) => {
+    const canvas = document.querySelector<HTMLCanvasElement>('canvas[data-terminal-preview]')
+    if (!canvas) return false
+    const bounds = canvas.getBoundingClientRect()
+    const width = Math.round(bounds.width * 2)
+    const height = Math.round(bounds.height * 2)
+    return (
+      canvas.width === width &&
+      canvas.height === height &&
+      window.showcasePacing.completed.some(
+        (frame) =>
+          frame.id > after &&
+          frame.shader === 'regular' &&
+          frame.width === width &&
+          frame.height === height,
+      )
+    )
+  }, after)
+}
+
+async function verifyPacingPage(
+  page: Page,
+  url: string,
+  backend: Backend,
+  paused: boolean,
+): Promise<void> {
+  if (paused) await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto(`${url}?backend=${backend}`)
+  await ready(page, 'regular', backend)
+  await waitForFreshRegular(page, -1)
+  const before = await page.evaluate(() => window.showcasePacing.animationFrames)
+  await page.evaluate(switchRegularDuringFireworks, paused ? 1 : 2)
+  await page.waitForFunction(() => window.showcasePacing.latestSelection !== null)
+  const switched = await page.evaluate(() => window.showcasePacing.latestSelection)
+  assert(switched, `${backend}: heavy-frame selection did not run`)
+  assert(
+    switched.unfinished > 0,
+    `${backend}: shader switch did not overlap an unfinished heavy frame`,
+  )
+  await ready(page, 'regular', backend)
+  if (paused) await verifyPacedResize(page, switched.heavyFrame)
+  await waitForFreshRegular(page, switched.heavyFrame)
+  await page.waitForFunction((before) => window.showcasePacing.animationFrames > before + 2, before)
+  const after = await page.evaluate(() => window.showcasePacing.frames.at(-1)?.id ?? -1)
+  if (!paused) await verifyPacedResize(page, after)
+  await verifyCode(page, 'regular')
+  await assertLiveImage(
+    page,
+    `${backend} delayed heavy-frame recovery${paused ? ' while paused' : ''}`,
+  )
+  const result = await page.evaluate(() => window.showcasePacing)
+  console.log(
+    `${backend} ${paused ? 'paused' : 'animated'} pacing: max unfinished=${result.maxUnfinished}, frames=${result.frames.length}, completed=${result.completed.length}`,
+  )
+  assert(
+    result.maxUnfinished <= 1,
+    `${backend}: ${result.maxUnfinished} unfinished postprocess frames`,
+  )
+  assert(result.delayed > 0, `${backend}: delayed GPU readiness was not exercised`)
+  assert(
+    result.heavyAnimationFrames > 0,
+    `${backend}: page animation frames stopped while heavy output was unfinished`,
+  )
+  const heavyFrames = result.completed.filter((frame) => frame.shader === 'fireworks').length
+  assert(heavyFrames >= (paused ? 1 : 2), `${backend}: real heavy frames did not complete`)
+  const fresh = result.completed.find(
+    (frame) => frame.id > switched.heavyFrame && frame.shader === 'regular',
+  )
+  assert(fresh, `${backend}: Regular never replaced the pending heavy frame`)
+  assert(
+    result.frames
+      .filter((frame) => frame.id > fresh.id)
+      .every((frame) => frame.shader === 'regular'),
+    `${backend}: a stale shader overwrote Regular`,
+  )
+  assert(
+    result.frames.every(
+      (frame, index) =>
+        index === 0 || frame.animationFrame !== result.frames[index - 1]?.animationFrame,
+    ),
+    `${backend}: postprocess rendered more than once in one animation frame`,
+  )
+  pacingResults.push({
+    backend,
+    paused,
+    maxUnfinished: result.maxUnfinished,
+    frames: result.frames.length,
+    completed: result.completed.length,
+    delayed: result.delayed,
+    heavyFrames,
+    heavyAnimationFrames: result.heavyAnimationFrames,
+  })
+  checks.push(
+    `${backend}: delayed genuine GPU completion bounds heavy frames to one, controls respond, latest Regular wins${paused ? ' while reduced-motion paused' : ''}, DPR 2 resize and screenshot recover`,
+  )
+}
+
+async function verifyPacingBackend(
+  browser: Browser,
+  url: string,
+  backend: Backend,
+  shaders: Record<string, CompiledGhosttyShader>,
+): Promise<void> {
+  const context = await browser.newContext({
+    viewport: { width: 480, height: 420 },
+    deviceScaleFactor: 2,
+  })
+  const errors: string[] = []
+  context.on('page', (page) => page.on('pageerror', (error) => errors.push(error.message)))
+  try {
+    await context.addInitScript(installPacingProbe, shaders)
+    const page = await context.newPage()
+    await verifyPacingPage(page, url, backend, false)
+    await page.setViewportSize({ width: 480, height: 420 })
+    await verifyPacingPage(page, url, backend, true)
+    assert(errors.length === 0, `${backend}: pacing probe errors: ${errors.join('\n')}`)
+  } finally {
+    await context.close()
+  }
+}
+
+async function verifyHeavyPacing(browser: Browser, url: string): Promise<void> {
+  const shaders: Record<string, CompiledGhosttyShader> = {}
+  for (const id of ['regular', 'fireworks']) {
+    const source = await readFile(
+      join(repository, 'examples/showcase/shaders', `${id}.glsl`),
+      'utf8',
+    )
+    shaders[id] = await compileGhosttyShader(source)
+  }
+  await verifyPacingBackend(browser, url, 'webgpu', shaders)
+  await verifyPacingBackend(browser, url, 'webgl2', shaders)
+}
+
 async function verifyVisibleErrors(context: BrowserContext, url: string): Promise<void> {
   const page = await context.newPage()
   try {
@@ -558,10 +735,13 @@ async function run(): Promise<void> {
       deviceScaleFactor: 1,
     })
     const url = server.url.toString()
-    await verifyPage(context, url)
-    await verifyFallback(context, url)
-    await verifyMobile(context, url)
-    await verifyVisibleErrors(context, url)
+    await verifyHeavyPacing(browser, url)
+    if (!pacingOnly) {
+      await verifyPage(context, url)
+      await verifyFallback(context, url)
+      await verifyMobile(context, url)
+      await verifyVisibleErrors(context, url)
+    }
     await writeFile(
       join(artifacts, 'showcase-verification.json'),
       JSON.stringify(
@@ -569,7 +749,8 @@ async function run(): Promise<void> {
           ok: true,
           browser: 'Chromium SwiftShader',
           checks,
-          retainedArtifacts: ['showcase-desktop.png', 'showcase-mobile.png'],
+          pacingResults,
+          retainedArtifacts: pacingOnly ? [] : ['showcase-desktop.png', 'showcase-mobile.png'],
         },
         null,
         2,
@@ -595,7 +776,12 @@ try {
   await writeFile(
     join(artifacts, 'showcase-verification.json'),
     JSON.stringify(
-      { ok: false, checks, error: error instanceof Error ? error.stack : String(error) },
+      {
+        ok: false,
+        checks,
+        pacingResults,
+        error: error instanceof Error ? error.stack : String(error),
+      },
       null,
       2,
     ) + '\n',
@@ -603,10 +789,8 @@ try {
   throw error
 }
 
-for (const filename of [
-  'showcase-verification.json',
-  'showcase-desktop.png',
-  'showcase-mobile.png',
-]) {
+for (const filename of pacingOnly
+  ? ['showcase-verification.json']
+  : ['showcase-verification.json', 'showcase-desktop.png', 'showcase-mobile.png']) {
   console.log(`${filename}: ${(await stat(join(artifacts, filename))).size} bytes`)
 }

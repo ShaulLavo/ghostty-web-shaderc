@@ -20,6 +20,7 @@ import {
   type ShaderOutputSize,
   type ShaderPass,
 } from './gpu-pass.js'
+import { PreviewFrameSchedule, type ShaderFrame } from './frame-schedule.js'
 import { createTerminalScene, type TerminalScene } from './terminal-scene.js'
 
 export interface TerminalPreviewOptions {
@@ -177,15 +178,13 @@ class PreviewController implements TerminalPreview {
   readonly #uniforms = new ArrayBuffer(SHADER_UNIFORM_BYTE_LENGTH)
   readonly #themeUniforms: ReturnType<typeof colors>
   readonly #subscriptions: { dispose(): void }[] = []
+  readonly #frames = new PreviewFrameSchedule()
   #scene: TerminalScene | undefined
   #disposed = false
   #failed = false
   #paused = matchMedia('(prefers-reduced-motion: reduce)').matches
   #effectEnabled = true
   #raf = 0
-  #time = 0
-  #lastTick = performance.now()
-  #frame = 0
   #fontSize: number
   #outputSize: ShaderOutputSize | undefined
   #sourceSize: ShaderOutputSize | undefined
@@ -231,20 +230,25 @@ class PreviewController implements TerminalPreview {
   }
 
   async setShader(shader: CompiledGhosttyShader): Promise<void> {
-    if (this.#disposed) return
-    await this.#pass.setShader(shader)
-    this.#draw()
+    if (this.#disposed || this.#failed) return
+    try {
+      await this.#pass.setShader(shader)
+    } catch (cause) {
+      if (this.#disposed || this.#failed) return
+      throw cause
+    }
+    this.#requestDraw()
   }
 
   setPaused(paused: boolean): void {
     this.#paused = paused
     this.#synchronizeAnimation()
-    this.#draw()
+    this.#requestDraw()
   }
 
   setEffectEnabled(enabled: boolean): void {
     this.#effectEnabled = enabled
-    this.#draw()
+    this.#requestDraw()
   }
 
   fail(cause: unknown): void {
@@ -253,6 +257,7 @@ class PreviewController implements TerminalPreview {
     this.#scene?.setPaused(true)
     cancelAnimationFrame(this.#raf)
     this.#raf = 0
+    this.#pass.dispose()
     this.#onError?.(cause instanceof Error ? cause : new Error(String(cause)))
   }
 
@@ -260,6 +265,7 @@ class PreviewController implements TerminalPreview {
     if (this.#disposed) return
     this.#disposed = true
     cancelAnimationFrame(this.#raf)
+    this.#raf = 0
     this.#scene?.dispose()
     this.#resizeObserver.disconnect()
     this.#view.removeEventListener('resize', this.#windowResized)
@@ -281,8 +287,7 @@ class PreviewController implements TerminalPreview {
       if (snapshot) this.#updateCursor(snapshot)
       this.#pass.capture(canvas)
       this.#sourceSize = { width: canvas.width, height: canvas.height }
-      this.#draw()
-      this.#output.dataset['ready'] = 'true'
+      this.#requestDraw()
     } catch (cause) {
       this.fail(cause)
     }
@@ -296,15 +301,15 @@ class PreviewController implements TerminalPreview {
     if (current.every((value, index) => value === this.#currentCursor[index])) return
     this.#previousCursor = this.#currentCursor
     this.#currentCursor = current
-    this.#cursorChangeTime = this.#time
+    this.#cursorChangeTime = this.#frames.timeAt(performance.now())
     this.#output.dataset['cursorChange'] = String(this.#cursorChangeTime)
   }
 
-  #draw(): void {
-    if (this.#disposed || this.#failed) return
+  readonly #draw = ({ time, delta, frame }: ShaderFrame): boolean => {
+    if (this.#disposed || this.#failed || document.hidden) return false
     const size = this.#outputSize
     const sourceSize = this.#sourceSize
-    if (!size || !sourceSize) return
+    if (!size || !sourceSize) return false
     const cursorColor: ShaderVector4 = [0.57, 0.93, 0.62, 1]
     const width = size.width
     const height = size.height
@@ -318,23 +323,39 @@ class PreviewController implements TerminalPreview {
           [0, 0, 0],
           [0, 0, 0],
         ],
-        iChannelTime: [this.#time, 0, 0, 0],
-        iTime: this.#time,
-        iTimeDelta: this.#paused ? 0 : 1 / 60,
-        iFrameRate: 60,
-        iFrame: this.#frame,
+        iChannelTime: [time, 0, 0, 0],
+        iTime: time,
+        iTimeDelta: delta,
+        iFrameRate: delta > 0 ? 1 / delta : 0,
+        iFrame: frame,
         iCurrentCursor: this.#currentCursor,
         iPreviousCursor: this.#previousCursor,
         iCurrentCursorColor: cursorColor,
         iPreviousCursorColor: cursorColor,
         iCursorColor: [0.57, 0.93, 0.62],
         iCursorVisible: this.#cursorVisible,
-        iTimeCursorChange: this.#cursorChangeTime,
+        iTimeCursorChange: Math.min(this.#cursorChangeTime, time),
         iFocus: 1,
       },
       this.#uniforms,
     )
-    this.#pass.draw(uniforms, this.#effectEnabled)
+    const accepted = this.#pass.draw(uniforms, this.#effectEnabled)
+    if (accepted) this.#output.dataset['ready'] = 'true'
+    return accepted
+  }
+
+  #requestDraw(): void {
+    if (this.#disposed || this.#failed) return
+    this.#frames.invalidate()
+    this.#scheduleFrame()
+  }
+
+  #scheduleFrame(): void {
+    if (this.#disposed || this.#failed || document.hidden) return
+    if (!this.#outputSize || !this.#sourceSize) return
+    if (this.#raf !== 0) return
+    if (!this.#frames.pending) return
+    this.#raf = requestAnimationFrame(this.#animate)
   }
 
   #synchronizeAnimation(): void {
@@ -342,20 +363,20 @@ class PreviewController implements TerminalPreview {
     this.#raf = 0
     const stopped = this.#paused || document.hidden || this.#disposed || this.#failed
     this.#scene?.setPaused(stopped)
-    this.#lastTick = performance.now()
-    if (!stopped) this.#raf = requestAnimationFrame(this.#animate)
+    this.#frames.setActive(!stopped, performance.now())
+    this.#scheduleFrame()
   }
 
   readonly #animate = (timestamp: number): void => {
-    this.#time += Math.min((timestamp - this.#lastTick) / 1000, 0.1)
-    this.#lastTick = timestamp
-    this.#frame = (this.#frame + 1) % 2147483647
+    this.#raf = 0
+    if (this.#disposed || this.#failed || document.hidden) return
     try {
-      this.#draw()
+      this.#frames.draw(timestamp, this.#draw)
     } catch (cause) {
       this.fail(cause)
     }
-    if (!this.#failed && !this.#disposed) this.#raf = requestAnimationFrame(this.#animate)
+    if (this.#disposed || this.#failed || document.hidden) return
+    this.#scheduleFrame()
   }
 
   readonly #visibilityChanged = (): void => this.#synchronizeAnimation()
@@ -381,7 +402,7 @@ class PreviewController implements TerminalPreview {
       this.#pass.resize(size)
       const snapshot = this.#terminal.frameSnapshot()
       if (snapshot) this.#updateCursor(snapshot)
-      this.#draw()
+      this.#requestDraw()
     } catch (cause) {
       this.fail(cause)
     }
@@ -400,7 +421,9 @@ export async function createTerminalPreview(
   try {
     const appearance = initialTerminalAppearance(host)
     device = await requestDevice(options.backend)
-    pass = device ? new WebGpuShaderPass(device, output) : new WebGlShaderPass(output)
+    pass = device
+      ? new WebGpuShaderPass(device, output, (cause) => controller?.fail(cause))
+      : new WebGlShaderPass(output)
     terminal = await Terminal.create({
       accessibility: { label: 'Ghostty shader demonstration terminal' },
       appearance: {
