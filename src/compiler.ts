@@ -1,4 +1,4 @@
-import type { GlslOutput } from 'naga-wasm'
+import type { GlslOutput, Module, ModuleInfo } from 'naga-wasm'
 import { ShaderCompileError } from './diagnostics.js'
 import type { ShaderDiagnostic } from './diagnostics.js'
 import { getShaderCompiler } from './loader.js'
@@ -72,11 +72,26 @@ function webglBindings(output: GlslOutput, source: ShaderSource): CompiledGhostt
   return { uniformBlock, channel0 }
 }
 
+function withValidatedModule<T>(
+  compiler: ShaderCompiler,
+  module: Module,
+  operation: (module: Module, info: ModuleInfo) => T,
+): T {
+  try {
+    const info = compiler.validate(module)
+    try {
+      return operation(module, info)
+    } finally {
+      info.free()
+    }
+  } finally {
+    module.free()
+  }
+}
+
 function validateWgsl(compiler: ShaderCompiler, wgsl: string, source: ShaderSource): void {
   try {
-    using module = compiler.parseWgsl(wgsl)
-    using info = compiler.validate(module)
-    void info
+    withValidatedModule(compiler, compiler.parseWgsl(wgsl), () => undefined)
   } catch (cause) {
     const report = cause instanceof compiler.NagaError ? cause.formatted : String(cause)
     throw new ShaderCompileError({
@@ -91,13 +106,14 @@ function validateWgsl(compiler: ShaderCompiler, wgsl: string, source: ShaderSour
 
 function compileWgsl(compiler: ShaderCompiler, source: ShaderSource): string {
   try {
-    using module = compiler.parseGlsl(source.text, { stage: 'fragment' })
-    using info = compiler.validate(module)
-    const wgsl = compiler.writeWgsl(module, info)
-    checkedMainImage(wgsl, source)
-    checkedResources(wgsl, source)
-    validateWgsl(compiler, wgsl, source)
-    return wgsl
+    const parsed = compiler.parseGlsl(source.text, { stage: 'fragment' })
+    return withValidatedModule(compiler, parsed, (module, info) => {
+      const wgsl = compiler.writeWgsl(module, info)
+      checkedMainImage(wgsl, source)
+      checkedResources(wgsl, source)
+      validateWgsl(compiler, wgsl, source)
+      return wgsl
+    })
   } catch (error) {
     throw compileError(error, compiler, source)
   }
@@ -105,16 +121,17 @@ function compileWgsl(compiler: ShaderCompiler, source: ShaderSource): string {
 
 function compileGlsl(compiler: ShaderCompiler, source: ShaderSource): GlslOutput {
   try {
-    using module = compiler.parseGlsl(source.text, { stage: 'fragment' })
-    using info = compiler.validate(module)
-    const inspection = compiler.writeWgsl(module, info)
-    checkedMainImage(inspection, source)
-    checkedResources(inspection, source)
-    return compiler.writeGlsl(module, info, {
-      version: '300 es',
-      stage: 'fragment',
-      entryPoint: 'main',
-      reflect: true,
+    const parsed = compiler.parseGlsl(source.text, { stage: 'fragment' })
+    return withValidatedModule(compiler, parsed, (module, info) => {
+      const inspection = compiler.writeWgsl(module, info)
+      checkedMainImage(inspection, source)
+      checkedResources(inspection, source)
+      return compiler.writeGlsl(module, info, {
+        version: '300 es',
+        stage: 'fragment',
+        entryPoint: 'main',
+        reflect: true,
+      })
     })
   } catch (error) {
     throw compileError(error, compiler, source)
