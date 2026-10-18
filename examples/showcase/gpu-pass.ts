@@ -5,11 +5,13 @@ import {
   SHADER_UNIFORM_BYTE_LENGTH,
 } from 'ghostty-web-shaderc/runtime'
 
+type ShaderPassErrorHandler = (cause: unknown) => void
+
 export interface ShaderPass {
   readonly backend: 'webgpu' | 'webgl2'
   resize(size: ShaderOutputSize): void
   capture(source: HTMLCanvasElement): void
-  draw(uniforms: ArrayBuffer, effectEnabled: boolean): void
+  draw(uniforms: ArrayBuffer, effectEnabled: boolean): boolean
   setShader(shader: CompiledGhosttyShader): Promise<void>
   dispose(): void
 }
@@ -74,13 +76,16 @@ export class WebGpuShaderPass implements ShaderPass {
   readonly #sampler: GPUSampler
   readonly #copyPipeline: GPURenderPipeline
   readonly #flipPipeline: GPURenderPipeline
+  readonly #onError: ShaderPassErrorHandler
   #shaderPipeline: GPURenderPipeline | undefined
   #textures: GpuTextures | undefined
+  #effectReady = true
   #disposed = false
 
-  constructor(device: GPUDevice, canvas: HTMLCanvasElement) {
+  constructor(device: GPUDevice, canvas: HTMLCanvasElement, onError: ShaderPassErrorHandler) {
     this.#device = device
     this.#canvas = canvas
+    this.#onError = onError
     this.#context = requireResource(canvas.getContext('webgpu'), 'WebGPU output context')
     this.#format = navigator.gpu.getPreferredCanvasFormat()
     this.#context.configure({ device, format: this.#format, alphaMode: 'opaque' })
@@ -96,6 +101,7 @@ export class WebGpuShaderPass implements ShaderPass {
   }
 
   async setShader(shader: CompiledGhosttyShader): Promise<void> {
+    if (this.#disposed) return
     const device = this.#device
     device.pushErrorScope('validation')
     let pipeline: GPURenderPipeline | undefined
@@ -107,19 +113,21 @@ export class WebGpuShaderPass implements ShaderPass {
       if (messages.length > 0) {
         throw new Error(messages.map((message) => message.message).join('\n'))
       }
-      pipeline = await device.createRenderPipelineAsync({
-        layout: device.createPipelineLayout({ bindGroupLayouts: [this.#layout] }),
-        vertex: { module: this.#vertex, entryPoint: 'main' },
-        fragment: { module, entryPoint: shader.entryPoint, targets: [{ format: this.#format }] },
-        primitive: { topology: 'triangle-list' },
-      })
+      if (!this.#disposed)
+        pipeline = await device.createRenderPipelineAsync({
+          layout: device.createPipelineLayout({ bindGroupLayouts: [this.#layout] }),
+          vertex: { module: this.#vertex, entryPoint: 'main' },
+          fragment: { module, entryPoint: shader.entryPoint, targets: [{ format: this.#format }] },
+          primitive: { topology: 'triangle-list' },
+        })
     } catch (cause) {
       failure = cause
     }
     const validation = await device.popErrorScope()
+    if (this.#disposed) return
     if (failure !== undefined) throw failure
     if (validation) throw new Error(validation.message)
-    if (!this.#disposed) this.#shaderPipeline = pipeline
+    this.#shaderPipeline = pipeline
   }
 
   resize(size: ShaderOutputSize): void {
@@ -151,8 +159,8 @@ export class WebGpuShaderPass implements ShaderPass {
     this.#device.queue.submit([encoder.finish()])
   }
 
-  draw(uniforms: ArrayBuffer, effectEnabled: boolean): void {
-    if (this.#disposed || !this.#textures) return
+  draw(uniforms: ArrayBuffer, effectEnabled: boolean): boolean {
+    if (this.#disposed || !this.#textures || !this.#effectReady) return false
     const pipeline = effectEnabled ? this.#shaderPipeline : undefined
     this.#device.queue.writeBuffer(this.#uniforms, 0, uniforms)
     const encoder = this.#device.createCommandEncoder()
@@ -163,9 +171,28 @@ export class WebGpuShaderPass implements ShaderPass {
       pipeline ? this.#textures.shader : this.#textures.copy,
     )
     this.#device.queue.submit([encoder.finish()])
+    this.#trackEffectCompletion()
+    return true
+  }
+
+  #trackEffectCompletion(): void {
+    this.#effectReady = false
+    const completion = this.#device.queue.onSubmittedWorkDone()
+    void completion.then(this.#effectCompleted, this.#effectFailed)
+  }
+
+  readonly #effectCompleted = (): void => {
+    if (this.#disposed) return
+    this.#effectReady = true
+  }
+
+  readonly #effectFailed = (cause: unknown): void => {
+    if (this.#disposed) return
+    this.#onError(cause)
   }
 
   dispose(): void {
+    if (this.#disposed) return
     this.#disposed = true
     this.#textures?.raw.destroy()
     this.#textures?.canonical.destroy()
@@ -264,8 +291,9 @@ export class WebGlShaderPass implements ShaderPass {
   readonly #uniforms: WebGLBuffer
   readonly #vao: WebGLVertexArrayObject
   readonly #copy: WebGLProgram
-  #shader: { program: WebGLProgram; metadata: CompiledGhosttyShader } | undefined
+  #shader: { program: WebGLProgram; hasUniforms: boolean } | undefined
   #hasSource = false
+  #effectFence: WebGLSync | undefined
   #disposed = false
 
   constructor(canvas: HTMLCanvasElement) {
@@ -287,13 +315,26 @@ export class WebGlShaderPass implements ShaderPass {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
     gl.disable(gl.DITHER)
     gl.disable(gl.BLEND)
+    gl.bindBuffer(gl.UNIFORM_BUFFER, this.#uniforms)
+    gl.bufferData(gl.UNIFORM_BUFFER, SHADER_UNIFORM_BYTE_LENGTH, gl.DYNAMIC_DRAW)
+    gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, this.#uniforms)
+    gl.bindBuffer(gl.UNIFORM_BUFFER, null)
+    this.#configureSampler(this.#copy, 'sourceImage')
   }
 
   async setShader(shader: CompiledGhosttyShader): Promise<void> {
     if (this.#disposed) return
     const program = this.#program(shader.glsl)
-    this.#gl.deleteProgram(this.#shader?.program ?? null)
-    this.#shader = { program, metadata: shader }
+    try {
+      this.#configureSampler(program, shader.webgl.channel0)
+      const block = shader.webgl.uniformBlock
+      if (block) this.#configureUniformBlock(program, block)
+      this.#gl.deleteProgram(this.#shader?.program ?? null)
+      this.#shader = { program, hasUniforms: block !== null }
+    } catch (cause) {
+      this.#gl.deleteProgram(program)
+      throw cause
+    }
   }
 
   resize(size: ShaderOutputSize): void {
@@ -320,29 +361,48 @@ export class WebGlShaderPass implements ShaderPass {
     this.#hasSource = true
   }
 
-  draw(uniforms: ArrayBuffer, effectEnabled: boolean): void {
-    if (this.#disposed || !this.#hasSource) return
+  draw(uniforms: ArrayBuffer, effectEnabled: boolean): boolean {
+    if (this.#disposed || !this.#hasSource) return false
     const gl = this.#gl
     const shader = effectEnabled ? this.#shader : undefined
+    if (!this.#effectReady()) return false
     const program = shader?.program ?? this.#copy
     gl.useProgram(program)
     gl.bindVertexArray(this.#vao)
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, this.#texture)
-    gl.uniform1i(
-      gl.getUniformLocation(program, shader?.metadata.webgl.channel0 ?? 'sourceImage'),
-      0,
-    )
-    const block = shader?.metadata.webgl.uniformBlock
-    if (block) this.#bindUniforms(program, block, uniforms)
+    if (shader?.hasUniforms) this.#bindUniforms(uniforms)
     gl.viewport(0, 0, this.#canvas.width, this.#canvas.height)
     gl.drawArrays(gl.TRIANGLES, 0, 3)
+    this.#effectFence = requireResource(
+      gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0),
+      'WebGL effect fence',
+    )
+    gl.flush()
+    return true
+  }
+
+  #effectReady(): boolean {
+    const fence = this.#effectFence
+    if (!fence) return true
+    const status = this.#gl.clientWaitSync(fence, 0, 0)
+    if (status === this.#gl.WAIT_FAILED) throw new Error('WebGL2 effect fence wait failed')
+    if (status === this.#gl.TIMEOUT_EXPIRED) return false
+    if (status !== this.#gl.ALREADY_SIGNALED && status !== this.#gl.CONDITION_SATISFIED)
+      throw new Error(`Unexpected WebGL2 effect fence status: ${status}`)
+    this.#gl.deleteSync(fence)
+    this.#effectFence = undefined
+    return true
   }
 
   dispose(): void {
     if (this.#disposed) return
     this.#disposed = true
     const gl = this.#gl
+    if (this.#effectFence) {
+      gl.deleteSync(this.#effectFence)
+      this.#effectFence = undefined
+    }
     gl.deleteProgram(this.#copy)
     gl.deleteProgram(this.#shader?.program ?? null)
     gl.deleteShader(this.#vertex)
@@ -352,15 +412,24 @@ export class WebGlShaderPass implements ShaderPass {
     gl.getExtension('WEBGL_lose_context')?.loseContext()
   }
 
-  #bindUniforms(program: WebGLProgram, blockName: string, uniforms: ArrayBuffer): void {
+  #bindUniforms(uniforms: ArrayBuffer): void {
     const gl = this.#gl
-    const block = gl.getUniformBlockIndex(program, blockName)
-    if (block === gl.INVALID_INDEX)
-      throw new Error(`WebGL uniform block ${blockName} was not linked`)
-    gl.uniformBlockBinding(program, block, 0)
     gl.bindBuffer(gl.UNIFORM_BUFFER, this.#uniforms)
-    gl.bufferData(gl.UNIFORM_BUFFER, uniforms, gl.DYNAMIC_DRAW)
-    gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, this.#uniforms)
+    gl.bufferSubData(gl.UNIFORM_BUFFER, 0, uniforms)
+  }
+
+  #configureSampler(program: WebGLProgram, name: string | null): void {
+    if (name === null) return
+    const location = this.#gl.getUniformLocation(program, name)
+    this.#gl.useProgram(program)
+    this.#gl.uniform1i(location, 0)
+  }
+
+  #configureUniformBlock(program: WebGLProgram, name: string): void {
+    const gl = this.#gl
+    const block = gl.getUniformBlockIndex(program, name)
+    if (block === gl.INVALID_INDEX) throw new Error(`WebGL uniform block ${name} was not linked`)
+    gl.uniformBlockBinding(program, block, 0)
   }
 
   #program(source: string): WebGLProgram {
