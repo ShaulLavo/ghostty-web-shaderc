@@ -150,7 +150,10 @@ async function pixels(
   page: Page,
   canvas: Locator,
 ): Promise<{ image: Buffer; summary: PixelSummary }> {
-  const image = await canvas.screenshot({ animations: 'allow' })
+  const clip = await canvas.boundingBox()
+  assert(clip && clip.width > 0 && clip.height > 0, 'Terminal canvas has no visible bounds')
+  // Element screenshots wait for animation frames, which software shaders can starve in CI.
+  const image = await page.screenshot({ animations: 'allow', clip })
   const summary = await page.evaluate(screenshotPixels, Array.from(image))
   return { image, summary }
 }
