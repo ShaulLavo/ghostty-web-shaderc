@@ -42,3 +42,13 @@ bun run test:showcase
 The browser check exercises example selection, generated-code panes, visible GPU output,
 effect controls, pause behavior, and a narrow mobile layout. It owns its browser, server,
 and temporary profile and removes them before it exits.
+
+## iOS Safari
+
+The minimal layout and all five examples were checked on an iPhone 17 Pro simulator
+running iOS 26.5 Safari. Input and generated file tabs, pause, effect controls,
+portrait, and landscape worked. The simulator selected WebGL2. Chromium GPU tests
+cover the WebGPU path.
+
+Runtime compilation releases WASM handles explicitly. It does not require
+`Symbol.dispose`, which was unavailable in the tested Safari runtime.

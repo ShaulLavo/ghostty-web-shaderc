@@ -24,7 +24,7 @@ highlight.registerLanguage('wgsl', () => ({
 export type CodeLanguage = 'typescript' | 'glsl' | 'wgsl'
 
 export function showCode(
-  elements: { code: HTMLElement; gutter: HTMLElement; lineCount: HTMLElement; scroll: HTMLElement },
+  elements: { code: HTMLElement; gutter: HTMLElement; scroll: HTMLElement },
   source: string,
   language: CodeLanguage,
 ): void {
@@ -34,6 +34,5 @@ export function showCode(
   elements.gutter.textContent = Array.from({ length: lines }, (_, index) => String(index + 1)).join(
     '\n',
   )
-  elements.lineCount.textContent = `${lines} lines`
   elements.scroll.scrollTo({ top: 0, left: 0 })
 }

@@ -4,7 +4,7 @@ Compile Ghostty and ShaderToy GLSL strings to WebGPU WGSL and WebGL2 GLSL at run
 The compiler uses Naga in WebAssembly. It does not depend on Three.js, Tree-sitter, or a terminal renderer.
 
 ```sh
-npm install https://github.com/ShaulLavo/ghostty-web-shaderc/releases/download/v0.0.1/ghostty-web-shaderc-0.0.1.tgz
+npm install https://github.com/ShaulLavo/ghostty-web-shaderc/releases/download/v0.0.2/ghostty-web-shaderc-0.0.2.tgz
 ```
 
 ```ts

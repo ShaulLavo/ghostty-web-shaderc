@@ -3,215 +3,111 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#111416" />
+    <meta name="theme-color" content="#101315" />
     <meta
       name="description"
-      content="Ghostty shaders, compiled in your browser. See the TypeScript, GLSL source, generated WGSL, and a live terminal preview."
+      content="Runtime Ghostty shaders. Source, generated code, and a live terminal."
     />
-    <title>ghostty-web-shaderc · Shader lab</title>
+    <title>ghostty-web-shaderc</title>
     <link
       rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='9' fill='%23111416'/%3E%3Cpath d='m10 12 8 8-8 8m11 0h9' fill='none' stroke='%238de0bf' stroke-width='3'/%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='9' fill='%23101315'/%3E%3Cpath d='m10 12 8 8-8 8m11 0h9' fill='none' stroke='%239ae4c5' stroke-width='3'/%3E%3C/svg%3E"
     />
   </head>
   <body>
     <div id="app" data-state="initializing">
-      <header class="topbar">
+      <header class="toolbar">
         <a
           class="brand"
           href="https://github.com/ShaulLavo/ghostty-web-shaderc"
-          aria-label="ghostty-web-shaderc on GitHub"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="ghostty-web-shaderc source"
+          title="ghostty-web-shaderc on GitHub"
         >
-          <svg
-            class="brand-mark"
-            width="29"
-            height="29"
-            viewBox="0 0 29 29"
-            fill="none"
-            aria-hidden="true"
-          >
-            <rect x=".5" y=".5" width="28" height="28" rx="7" />
-            <path d="m8 9 5 5-5 5m8 0h6" />
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="m4 5 7 7-7 7m10 0h7" />
           </svg>
           <span>ghostty-web-shaderc</span>
         </a>
-        <span class="topbar-divider" aria-hidden="true"></span>
-        <span class="topbar-label">Shader lab</span>
-        <a
-          class="github-link"
-          href="https://github.com/ShaulLavo/ghostty-web-shaderc"
-          target="_blank"
-          rel="noreferrer"
-          >View source <span aria-hidden="true">↗</span></a
-        >
-      </header>
-
-      <main>
-        <div class="page-heading">
-          <div>
-            <p class="eyebrow">COMPILED IN YOUR BROWSER</p>
-            <h1>Same shader. Both renderers.</h1>
-          </div>
-          <p class="page-intro">A shader string in.<br /><span>WebGPU + WebGL2 out.</span></p>
-        </div>
-
-        <div class="workspace">
-          <section class="preview-panel" aria-labelledby="preview-title">
-            <div class="panel-toolbar">
-              <h2 id="preview-title">
-                <span class="live-dot" aria-hidden="true"></span>Live preview
-              </h2>
-              <span class="backend-badge" id="backend-badge">Connecting GPU</span>
-            </div>
-
-            <div class="preview-stage">
-              <div class="terminal-window">
-                <div class="terminal-titlebar">
-                  <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-                  <span>Live Ghostty <span class="titlebar-separator">·</span> demo session</span>
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <rect x="2.5" y="3.5" width="11" height="9" rx="1.5" />
-                    <path d="m5 6 2 2-2 2m4 0h2" />
-                  </svg>
-                </div>
-                <div
-                  id="terminal-preview"
-                  class="terminal-preview"
-                  aria-label="Ghostty terminal with the selected shader"
-                ></div>
-              </div>
-              <div id="preview-message" class="preview-message" role="status">
-                Starting the terminal…
-              </div>
-            </div>
-
-            <div class="preview-controls">
-              <span class="preview-state" id="preview-state"
-                ><span aria-hidden="true"></span>Live</span
-              >
-              <div class="control-buttons">
-                <button
-                  class="quiet-button"
-                  id="pause-button"
-                  type="button"
-                  aria-pressed="false"
-                  disabled
-                >
-                  <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
-                    <path d="M4 3h3v10H4zm5 0h3v10H9z" />
-                  </svg>
-                  <span>Pause</span>
-                </button>
-                <button
-                  class="effect-toggle"
-                  id="effect-button"
-                  type="button"
-                  aria-pressed="true"
-                  disabled
-                >
-                  <span class="toggle-track" aria-hidden="true"><span></span></span>Shader on
-                </button>
-              </div>
-            </div>
-
-            <div class="example-details">
-              <div class="example-heading">
-                <label class="eyebrow" for="example-select">EXAMPLE</label>
-                <span class="example-position" id="example-position"></span>
-              </div>
-              <div class="example-picker">
-                <select id="example-select" aria-label="Choose a shader example"></select>
-                <div class="example-stepper">
-                  <button id="previous-example" type="button" aria-label="Previous example">
-                    ←
-                  </button>
-                  <button id="next-example" type="button" aria-label="Next example">→</button>
-                </div>
-              </div>
-              <p id="example-description" class="example-description"></p>
-              <div class="example-credit" id="example-credit"></div>
-            </div>
-
-            <div class="compile-status" role="status" aria-live="polite">
-              <span
-                id="compile-indicator"
-                class="compile-indicator"
-                data-state="compiling"
-                aria-hidden="true"
-              ></span>
-              <span id="compile-status">Loading runtime compiler…</span>
-              <span class="runtime-label">NAGA / WASM</span>
-            </div>
-          </section>
-
-          <section class="source-panel" aria-labelledby="source-title">
-            <div class="panel-toolbar source-toolbar">
-              <h2 id="source-title">The code that runs</h2>
-              <span class="readonly-label">READ ONLY</span>
-            </div>
-            <div class="source-workspace">
-              <nav class="file-tree" aria-label="Example files" role="tablist">
-                <div class="tree-project">
-                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path d="m3 6 5 5 5-5" /></svg
-                  ><span id="tree-project">example</span>
-                </div>
-                <div id="source-files" class="file-group"></div>
-                <div class="tree-folder">
-                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path d="m3 6 5 5 5-5" /></svg
-                  >compiled<span class="generated-dot" aria-hidden="true"></span>
-                </div>
-                <div id="generated-files" class="file-group generated-files"></div>
-                <p class="tree-note">Generated live<br />from the GLSL source.</p>
-              </nav>
-              <div class="code-panel">
-                <div class="code-toolbar">
-                  <div class="code-breadcrumb">
-                    <span id="file-label">index.ts</span><span id="file-kind">TypeScript</span>
-                  </div>
-                  <button
-                    id="copy-button"
-                    class="copy-button"
-                    type="button"
-                    aria-label="Copy code"
-                    disabled
-                  >
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                      <path d="M6 5V2.5h7.5V10H11" />
-                      <rect x="2.5" y="5.5" width="8" height="8" rx="1" /></svg
-                    ><span>Copy</span>
-                  </button>
-                </div>
-                <div
-                  class="code-scroll"
-                  id="code-scroll"
-                  tabindex="0"
-                  aria-label="Read-only source code"
-                >
-                  <pre class="code-gutter" id="code-gutter" aria-hidden="true"></pre>
-                  <pre
-                    class="code-content"
-                    data-code
-                  ><code id="source-code" role="tabpanel" aria-label="index.ts"></code></pre>
-                </div>
-                <div class="code-footer">
-                  <span id="code-line-count"></span
-                  ><span id="file-origin">Runtime entry point</span>
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
-        <footer class="page-footer">
-          <span>GLSL → Naga → WGSL + GLSL ES</span
-          ><a
-            href="https://github.com/ShaulLavo/ghostty-web-shaderc#readme"
-            target="_blank"
-            rel="noreferrer"
-            >Bring your own shader <span aria-hidden="true">↗</span></a
+        <select id="example-select" aria-label="Choose a shader example"></select>
+        <span
+          id="compile-indicator"
+          class="compile-indicator"
+          data-state="compiling"
+          title="Compiling shader"
+          aria-hidden="true"
+        ></span>
+        <div class="preview-controls">
+          <button
+            id="pause-button"
+            class="icon-button"
+            type="button"
+            aria-label="Pause animation"
+            title="Pause animation"
+            aria-pressed="false"
+            disabled
           >
-        </footer>
+            <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M4 3h3v10H4zm5 0h3v10H9z" />
+            </svg>
+          </button>
+          <button
+            id="effect-button"
+            class="icon-button effect-button"
+            type="button"
+            aria-label="Turn shader off"
+            title="Turn shader off"
+            aria-pressed="true"
+            disabled
+          >
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path
+                d="m9 3 1.7 4.3L15 9l-4.3 1.7L9 15l-1.7-4.3L3 9l4.3-1.7L9 3ZM16 2v4m-2-2h4m-1 10v4m-2-2h4"
+              />
+            </svg>
+          </button>
+        </div>
+        <span id="backend-badge" class="backend-label"></span>
+      </header>
+      <main class="workspace" aria-label="Shader example">
+        <section class="preview-pane" aria-label="Live Ghostty demo session">
+          <div
+            id="terminal-preview"
+            class="terminal-preview"
+            aria-label="Ghostty terminal with the selected shader"
+          ></div>
+          <div id="preview-message" class="preview-message" role="status">Loading…</div>
+          <div id="example-credit" class="example-credit"></div>
+        </section>
+        <section class="code-pane" aria-label="Example source and compiled output">
+          <div class="file-toolbar">
+            <nav id="file-tabs" class="file-tabs" aria-label="Example files" role="tablist"></nav>
+            <button
+              id="copy-button"
+              class="icon-button copy-button"
+              type="button"
+              aria-label="Copy code"
+              title="Copy code"
+              disabled
+            >
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M6 5V2.5h7.5V10H11" />
+                <rect x="2.5" y="5.5" width="8" height="8" rx="1" />
+              </svg>
+            </button>
+          </div>
+          <div class="code-scroll" id="code-scroll" tabindex="0" aria-label="Read-only source code">
+            <pre class="code-gutter" id="code-gutter" aria-hidden="true"></pre>
+            <pre
+              class="code-content"
+              data-code
+            ><code id="source-code" role="tabpanel" aria-label="index.ts"></code></pre>
+          </div>
+          <div class="code-footer" id="code-footer">
+            <span id="compile-status" role="status" aria-live="polite">Compiling…</span>
+          </div>
+        </section>
       </main>
     </div>
     <script type="module" src="./main.ts"></script>

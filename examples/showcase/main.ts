@@ -40,7 +40,6 @@ const fileButtons = new Map<FileId, HTMLButtonElement>()
 const codeElements = {
   code: element('source-code'),
   gutter: element('code-gutter'),
-  lineCount: element('code-line-count'),
   scroll: element('code-scroll'),
 }
 let selected: Example = examples[0]
@@ -58,7 +57,15 @@ let shaderApply: Promise<void> = Promise.resolve()
 const previewReady = initializePreview()
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+  const messages: string[] = []
+  const seen = new Set<Error>()
+  let current = error
+  while (current instanceof Error && !seen.has(current)) {
+    seen.add(current)
+    if (!messages.includes(current.message)) messages.push(current.message)
+    current = current.cause
+  }
+  return messages.length > 0 ? messages.join(': ') : String(error)
 }
 
 function previewError(error: Error): void {
@@ -99,39 +106,29 @@ async function initializePreview(): Promise<TerminalPreview | null> {
   }
 }
 
-function createFile(id: FileId, label: string, extension: string, generated: boolean): void {
-  const target = generated ? element('generated-files') : element('source-files')
+function createFile(id: FileId, label: string): void {
   const item = document.createElement('button')
-  const icon = document.createElement('span')
-  const name = document.createElement('span')
   item.type = 'button'
   item.className = 'file-button'
   item.setAttribute('role', 'tab')
   item.setAttribute('aria-controls', 'source-code')
   item.dataset.file = id
   item.id = `file-${id}`
-  icon.className = `file-icon file-icon-${extension}`
-  icon.textContent = extension
-  icon.setAttribute('aria-hidden', 'true')
-  name.className = 'file-name'
-  name.textContent = label
-  item.append(icon, name)
+  item.textContent = label
   item.addEventListener('click', () => {
     selectedFile = id
     renderFile()
   })
-  target.append(item)
+  element('file-tabs').append(item)
   fileButtons.set(id, item)
 }
 
 function initializeFiles(): void {
-  createFile('entry', 'index.ts', 'ts', false)
-  createFile('source', selected.sourceFilename, 'gl', false)
-  createFile('wgsl', 'compiled.wgsl', 'wg', true)
-  createFile('glsl', 'compiled.glsl', 'gl', true)
-  for (const group of [element('source-files'), element('generated-files')]) {
-    group.addEventListener('keydown', navigateFiles)
-  }
+  createFile('entry', 'index.ts')
+  createFile('source', 'shader.glsl')
+  createFile('wgsl', 'output.wgsl')
+  createFile('glsl', 'output.glsl')
+  element('file-tabs').addEventListener('keydown', navigateFiles)
 }
 
 function navigateFiles(event: KeyboardEvent): void {
@@ -151,40 +148,35 @@ function navigateFiles(event: KeyboardEvent): void {
   target?.focus()
 }
 
-function getFile(): { label: string; source: string; language: CodeLanguage; origin: string } {
+function getFile(): { label: string; source: string; language: CodeLanguage } {
   if (selectedFile === 'entry')
     return {
       label: 'index.ts',
       source: selected.typescript,
       language: 'typescript',
-      origin: 'Runtime entry point',
     }
   if (selectedFile === 'source')
     return {
       label: selected.sourceFilename,
       source: selected.source,
       language: 'glsl',
-      origin: 'ShaderToy / Ghostty source',
     }
   if (compilation.kind !== 'ready')
     return {
       label: 'Compiling…',
       source: '',
       language: 'wgsl',
-      origin: 'Waiting for the runtime compiler',
     }
   if (selectedFile === 'wgsl')
     return {
-      label: 'compiled.wgsl',
+      label: 'output.wgsl',
       source: compilation.shader.wgsl,
       language: 'wgsl',
-      origin: 'Generated in this browser · WebGPU',
     }
   return {
-    label: 'compiled.glsl',
+    label: 'output.glsl',
     source: compilation.shader.glsl,
     language: 'glsl',
-    origin: 'Generated in this browser · WebGL2',
   }
 }
 
@@ -193,19 +185,13 @@ function updateFileButton(item: HTMLButtonElement, id: FileId): void {
   item.setAttribute('aria-selected', String(active))
   item.tabIndex = active ? 0 : -1
   item.disabled = (id === 'wgsl' || id === 'glsl') && compilation.kind !== 'ready'
-  if (id !== 'source') return
-  const name = item.querySelector('.file-name')
-  if (name) name.textContent = selected.sourceFilename
+  if (id === 'source') item.title = selected.sourceFilename
 }
 
 function renderFile(): void {
   const file = getFile()
   currentCode = file.source
   for (const [id, item] of fileButtons) updateFileButton(item, id)
-  element('file-label').textContent = file.label
-  element('file-kind').textContent =
-    file.language === 'typescript' ? 'TypeScript' : file.language.toUpperCase()
-  element('file-origin').textContent = file.origin
   codeElements.code.setAttribute('aria-label', file.label)
   codeElements.code.setAttribute('aria-labelledby', `file-${selectedFile}`)
   showCode(codeElements, file.source, file.language)
@@ -216,18 +202,15 @@ function renderFile(): void {
 function renderCredit(): void {
   const host = element('example-credit')
   host.replaceChildren()
-  if (!selected.credit) {
-    host.textContent = 'Original example · MIT'
-    return
-  }
+  host.hidden = !selected.credit
+  if (!selected.credit) return
   const link = document.createElement('a')
   link.href = selected.credit.url
   link.target = '_blank'
   link.rel = 'noreferrer'
   link.textContent = `${selected.credit.author} ↗`
-  const license = document.createElement('span')
-  license.textContent = selected.credit.license
-  host.append(link, license)
+  link.title = `${selected.credit.license} · Original shader source`
+  host.append(link)
 }
 
 function renderSelection(): void {
@@ -235,12 +218,12 @@ function renderSelection(): void {
   app.dataset.example = selected.id
   app.dataset.state = 'compiling'
   app.dataset.status = 'compiling'
-  element('tree-project').textContent = selected.id
-  element('example-description').textContent = selected.description
-  element('example-position').textContent = `${examples.indexOf(selected) + 1} / ${examples.length}`
   element('compile-indicator').dataset.state = 'compiling'
-  element('compile-status').textContent = 'Compiling shader in the browser…'
+  element('compile-indicator').title = 'Compiling shader'
+  element('compile-status').textContent = 'Compiling…'
   element('compile-status').removeAttribute('role')
+  element('code-footer').hidden = false
+  element('code-footer').dataset.state = 'compiling'
   renderCredit()
   renderFile()
 }
@@ -249,7 +232,9 @@ function compileSucceeded(shader: CompiledGhosttyShader, duration: number): void
   compilation = { kind: 'ready', shader, duration }
   app.dataset.state = 'ready'
   element('compile-indicator').dataset.state = 'ready'
-  element('compile-status').textContent = `Compiled both outputs in ${duration.toFixed(1)} ms`
+  element('compile-indicator').title = `Compiled in ${duration.toFixed(1)} ms`
+  element('compile-status').textContent = ''
+  element('code-footer').hidden = true
   renderFile()
 }
 
@@ -258,8 +243,11 @@ function compileFailed(error: unknown): void {
   app.dataset.state = 'error'
   app.dataset.status = 'error'
   element('compile-indicator').dataset.state = 'error'
+  element('compile-indicator').title = 'Shader compilation failed'
   element('compile-status').textContent = compilation.message
   element('compile-status').setAttribute('role', 'alert')
+  element('code-footer').hidden = false
+  element('code-footer').dataset.state = 'error'
 }
 
 async function applyShader(shader: CompiledGhosttyShader, token: number): Promise<void> {
@@ -297,39 +285,31 @@ async function selectExample(example: Example): Promise<void> {
   }
 }
 
-function moveExample(direction: number): void {
-  const index = (examples.indexOf(selected) + direction + examples.length) % examples.length
-  const example = examples[index]
-  if (example) void selectExample(example)
-}
-
 function resetCopyButton(): void {
   if (copyReset) clearTimeout(copyReset)
-  const label = copyButton.querySelector('span')
-  if (label) label.textContent = 'Copy'
+  copyButton.title = 'Copy code'
+  copyButton.setAttribute('aria-label', 'Copy code')
+  delete copyButton.dataset.copied
 }
 
 async function copyCode(): Promise<void> {
-  const label = copyButton.querySelector('span')
-  if (!label) return
   try {
     await navigator.clipboard.writeText(currentCode)
-    label.textContent = 'Copied'
+    copyButton.title = 'Copied'
+    copyButton.setAttribute('aria-label', 'Code copied')
+    copyButton.dataset.copied = 'true'
   } catch {
-    label.textContent = 'Unavailable'
+    copyButton.title = 'Copy unavailable'
   }
   copyReset = setTimeout(resetCopyButton, 1600)
 }
 
 function renderPauseState(): void {
   pauseButton.setAttribute('aria-pressed', String(paused))
-  const label = pauseButton.querySelector('span')
   const icon = pauseButton.querySelector('path')
-  if (label) label.textContent = paused ? 'Resume' : 'Pause'
+  pauseButton.title = paused ? 'Resume animation' : 'Pause animation'
+  pauseButton.setAttribute('aria-label', pauseButton.title)
   if (icon) icon.setAttribute('d', paused ? 'M4 2.5 13 8l-9 5.5z' : 'M4 3h3v10H4zm5 0h3v10H9z')
-  element('preview-state').lastChild?.remove()
-  element('preview-state').append(paused ? 'Paused' : 'Live')
-  element('preview-state').dataset.paused = String(paused)
 }
 
 function togglePaused(): void {
@@ -342,8 +322,8 @@ function toggleEffect(): void {
   effectEnabled = !effectEnabled
   preview?.setEffectEnabled(effectEnabled)
   effectButton.setAttribute('aria-pressed', String(effectEnabled))
-  effectButton.lastChild?.remove()
-  effectButton.append(effectEnabled ? 'Shader on' : 'Shader off')
+  effectButton.title = effectEnabled ? 'Turn shader off' : 'Turn shader on'
+  effectButton.setAttribute('aria-label', effectButton.title)
 }
 
 function teardown(): void {
@@ -365,8 +345,6 @@ select.addEventListener('change', () => {
   const example = examples.find((candidate) => candidate.id === select.value)
   if (example) void selectExample(example)
 })
-button('previous-example').addEventListener('click', () => moveExample(-1))
-button('next-example').addEventListener('click', () => moveExample(1))
 pauseButton.addEventListener('click', togglePaused)
 effectButton.addEventListener('click', toggleEffect)
 copyButton.addEventListener('click', () => {

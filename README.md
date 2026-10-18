@@ -3,7 +3,7 @@
 Compile Ghostty and ShaderToy GLSL strings to WebGPU WGSL and WebGL2 GLSL at runtime.
 
 ```sh
-npm install https://github.com/ShaulLavo/ghostty-web-shaderc/releases/download/v0.0.1/ghostty-web-shaderc-0.0.1.tgz
+npm install https://github.com/ShaulLavo/ghostty-web-shaderc/releases/download/v0.0.2/ghostty-web-shaderc-0.0.2.tgz
 ```
 
 ```ts

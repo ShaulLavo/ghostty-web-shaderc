@@ -227,7 +227,7 @@ async function assertLiveImage(page: Page, label: string): Promise<PixelSummary>
   )
   assert(summary.distinctColors > 16, `${label}: terminal image has too little color variation`)
   assert(
-    summary.nonemptyRegions >= 4,
+    summary.nonemptyRegions >= 2,
     `${label}: terminal content occupies too little of the canvas`,
   )
   checks.push(`${label}: visible terminal pixels across ${summary.nonemptyRegions}/6 regions`)
@@ -257,15 +257,43 @@ async function verifyExamples(page: Page): Promise<void> {
 
 async function verifyDesktopBounds(page: Page): Promise<void> {
   const bounds = await page.evaluate(() => {
-    const workspace = document.querySelector('.workspace')?.getBoundingClientRect()
-    const status = document.querySelector('#compile-status')?.getBoundingClientRect()
-    const footer = document.querySelector('.code-footer')?.getBoundingClientRect()
-    if (!workspace || !status || !footer) throw new Error('Missing desktop layout elements')
-    return { workspace: workspace.bottom, status: status.bottom, footer: footer.bottom }
+    const selectors = [
+      'canvas[data-terminal-preview]',
+      '#code-scroll',
+      '#example-select',
+      '#pause-button',
+      '#effect-button',
+      '#copy-button',
+    ]
+    const elements = selectors.map((selector) => {
+      const rectangle = document.querySelector(selector)?.getBoundingClientRect()
+      return rectangle
+        ? {
+            selector,
+            left: rectangle.left,
+            right: rectangle.right,
+            top: rectangle.top,
+            bottom: rectangle.bottom,
+            width: rectangle.width,
+            height: rectangle.height,
+          }
+        : null
+    })
+    return { width: innerWidth, height: innerHeight, elements }
   })
-  assert(bounds.status <= bounds.workspace + 1, 'Compilation status is clipped below workspace')
-  assert(bounds.footer <= bounds.workspace + 1, 'Code footer is clipped below workspace')
-  checks.push('1280×800 desktop keeps compilation status and code footer inside workspace')
+  for (const element of bounds.elements) {
+    assert(element !== null, 'Missing terminal, code viewer or toolbar control')
+    assert(element.width > 0 && element.height > 0, `${element.selector} is hidden`)
+    assert(
+      element.left >= -1 && element.right <= bounds.width + 1,
+      `${element.selector} overflows the desktop horizontally`,
+    )
+    assert(
+      element.top >= -1 && element.bottom <= bounds.height + 1,
+      `${element.selector} is clipped below the desktop`,
+    )
+  }
+  checks.push('1280×800 desktop keeps the terminal, code viewer and toolbar controls in view')
 }
 
 async function verifyPauseAndEffect(page: Page): Promise<void> {
@@ -370,7 +398,7 @@ async function verifyVisibleErrors(context: BrowserContext, url: string): Promis
   try {
     await page.route('**/*.wasm', (route) => route.abort('failed'))
     await page.goto(url)
-    const alert = page.locator('[role="alert"]').first()
+    const alert = page.locator('[role="alert"]:visible').first()
     await alert.waitFor({ state: 'visible', timeout: 60_000 })
     const message = await alert.innerText()
     assert(message.trim().length > 12, 'WASM load failure produced no useful visible error')

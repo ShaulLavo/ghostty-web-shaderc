@@ -29,10 +29,12 @@ Creative Commons Attribution-NonCommercial-ShareAlike notice.
 ## Cursor warp adaptation
 
 The upstream `TRAIL_COLOR` global initializes itself from `iCurrentCursorColor`.
-Naga 30.2.0 drops this uniform-dependent initializer, leaving the trail transparent.
+naga-wasm 30.2.0 bundles Naga 30.0.1, which drops this initializer and leaves the trail transparent.
 The bundled copy declares `TRAIL_COLOR` globally and assigns the same original expression
 at the start of `mainImage`. Two source comments identify this change. The effect math
 and configuration values are unchanged.
 
 Local filenames use hyphens to match the example IDs. The scanline and pixel grid sources
 keep their original comments and formatting.
+
+Trailing whitespace in the adapted cursor shader is removed.
