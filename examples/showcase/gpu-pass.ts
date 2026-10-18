@@ -7,10 +7,16 @@ import {
 
 export interface ShaderPass {
   readonly backend: 'webgpu' | 'webgl2'
+  resize(size: ShaderOutputSize): void
   capture(source: HTMLCanvasElement): void
   draw(uniforms: ArrayBuffer, effectEnabled: boolean): void
   setShader(shader: CompiledGhosttyShader): Promise<void>
   dispose(): void
+}
+
+export interface ShaderOutputSize {
+  readonly height: number
+  readonly width: number
 }
 
 const COPY_FRAGMENT_WGSL = `@group(0) @binding(0) var image: texture_2d<f32>;
@@ -116,8 +122,22 @@ export class WebGpuShaderPass implements ShaderPass {
     if (!this.#disposed) this.#shaderPipeline = pipeline
   }
 
+  resize(size: ShaderOutputSize): void {
+    if (this.#disposed) return
+    if (this.#canvas.width === size.width && this.#canvas.height === size.height) return
+    this.#canvas.width = size.width
+    this.#canvas.height = size.height
+  }
+
   capture(source: HTMLCanvasElement): void {
-    if (this.#disposed || source.width === 0 || source.height === 0) return
+    if (
+      this.#disposed ||
+      source.width === 0 ||
+      source.height === 0 ||
+      this.#canvas.width === 0 ||
+      this.#canvas.height === 0
+    )
+      return
     const context = requireResource(source.getContext('webgpu'), 'Ghostty WebGPU source context')
     const textures = this.#texturesFor(source.width, source.height)
     const encoder = this.#device.createCommandEncoder()
@@ -180,8 +200,6 @@ export class WebGpuShaderPass implements ShaderPass {
     if (this.#textures?.width === width && this.#textures.height === height) return this.#textures
     this.#textures?.raw.destroy()
     this.#textures?.canonical.destroy()
-    this.#canvas.width = width
-    this.#canvas.height = height
     const raw = this.#device.createTexture({
       size: [width, height],
       format: this.#format,
@@ -278,11 +296,23 @@ export class WebGlShaderPass implements ShaderPass {
     this.#shader = { program, metadata: shader }
   }
 
+  resize(size: ShaderOutputSize): void {
+    if (this.#disposed) return
+    if (this.#canvas.width === size.width && this.#canvas.height === size.height) return
+    this.#canvas.width = size.width
+    this.#canvas.height = size.height
+  }
+
   capture(source: HTMLCanvasElement): void {
-    if (this.#disposed || source.width === 0 || source.height === 0) return
+    if (
+      this.#disposed ||
+      source.width === 0 ||
+      source.height === 0 ||
+      this.#canvas.width === 0 ||
+      this.#canvas.height === 0
+    )
+      return
     const gl = this.#gl
-    if (this.#canvas.width !== source.width) this.#canvas.width = source.width
-    if (this.#canvas.height !== source.height) this.#canvas.height = source.height
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, this.#texture)
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)

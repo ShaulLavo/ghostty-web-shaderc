@@ -1,6 +1,6 @@
 {
   "name": "ghostty-web-shaderc",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Runtime ShaderToy and Ghostty GLSL compiler for WebGPU and WebGL2",
   "keywords": [
     "compiler",

@@ -10,18 +10,12 @@ type TerminalPreview = Awaited<ReturnType<typeof createTerminalPreview>>
 type FileId = 'entry' | 'source' | 'wgsl' | 'glsl'
 type Compilation =
   | { kind: 'compiling' }
-  | { kind: 'ready'; shader: CompiledGhosttyShader; duration: number }
+  | { kind: 'ready'; shader: CompiledGhosttyShader }
   | { kind: 'failed'; message: string }
 
 function element(id: string): HTMLElement {
   const found = document.getElementById(id)
   if (!(found instanceof HTMLElement)) throw new Error(`Missing page element: ${id}`)
-  return found
-}
-
-function button(id: string): HTMLButtonElement {
-  const found = element(id)
-  if (!(found instanceof HTMLButtonElement)) throw new Error(`Expected button: ${id}`)
   return found
 }
 
@@ -33,9 +27,6 @@ function exampleSelect(): HTMLSelectElement {
 
 const app = element('app')
 const select = exampleSelect()
-const pauseButton = button('pause-button')
-const effectButton = button('effect-button')
-const copyButton = button('copy-button')
 const fileButtons = new Map<FileId, HTMLButtonElement>()
 const codeElements = {
   code: element('source-code'),
@@ -47,11 +38,7 @@ let selectedFile: FileId = 'entry'
 let compilation: Compilation = { kind: 'compiling' }
 let preview: TerminalPreview | null = null
 let request = 0
-let paused = matchMedia('(prefers-reduced-motion: reduce)').matches
-let effectEnabled = true
-let currentCode = ''
 let disposed = false
-let copyReset: ReturnType<typeof setTimeout> | undefined
 let shaderApply: Promise<void> = Promise.resolve()
 
 const previewReady = initializePreview()
@@ -91,17 +78,12 @@ async function initializePreview(): Promise<TerminalPreview | null> {
       return null
     }
     preview = created
-    element('backend-badge').textContent = created.backend === 'webgpu' ? 'WebGPU' : 'WebGL2'
-    element('backend-badge').dataset.ready = 'true'
     element('preview-message').hidden = true
     app.dataset.preview = 'ready'
     app.dataset.backend = created.backend
-    pauseButton.disabled = false
-    effectButton.disabled = false
     return created
   } catch (error) {
     previewError(new Error(errorMessage(error)))
-    element('backend-badge').textContent = 'GPU unavailable'
     return null
   }
 }
@@ -185,32 +167,14 @@ function updateFileButton(item: HTMLButtonElement, id: FileId): void {
   item.setAttribute('aria-selected', String(active))
   item.tabIndex = active ? 0 : -1
   item.disabled = (id === 'wgsl' || id === 'glsl') && compilation.kind !== 'ready'
-  if (id === 'source') item.title = selected.sourceFilename
 }
 
 function renderFile(): void {
   const file = getFile()
-  currentCode = file.source
   for (const [id, item] of fileButtons) updateFileButton(item, id)
   codeElements.code.setAttribute('aria-label', file.label)
   codeElements.code.setAttribute('aria-labelledby', `file-${selectedFile}`)
   showCode(codeElements, file.source, file.language)
-  copyButton.disabled = !file.source
-  resetCopyButton()
-}
-
-function renderCredit(): void {
-  const host = element('example-credit')
-  host.replaceChildren()
-  host.hidden = !selected.credit
-  if (!selected.credit) return
-  const link = document.createElement('a')
-  link.href = selected.credit.url
-  link.target = '_blank'
-  link.rel = 'noreferrer'
-  link.textContent = `${selected.credit.author} ↗`
-  link.title = `${selected.credit.license} · Original shader source`
-  host.append(link)
 }
 
 function renderSelection(): void {
@@ -218,23 +182,12 @@ function renderSelection(): void {
   app.dataset.example = selected.id
   app.dataset.state = 'compiling'
   app.dataset.status = 'compiling'
-  element('compile-indicator').dataset.state = 'compiling'
-  element('compile-indicator').title = 'Compiling shader'
-  element('compile-status').textContent = 'Compiling…'
-  element('compile-status').removeAttribute('role')
-  element('code-footer').hidden = false
-  element('code-footer').dataset.state = 'compiling'
-  renderCredit()
   renderFile()
 }
 
-function compileSucceeded(shader: CompiledGhosttyShader, duration: number): void {
-  compilation = { kind: 'ready', shader, duration }
+function compileSucceeded(shader: CompiledGhosttyShader): void {
+  compilation = { kind: 'ready', shader }
   app.dataset.state = 'ready'
-  element('compile-indicator').dataset.state = 'ready'
-  element('compile-indicator').title = `Compiled in ${duration.toFixed(1)} ms`
-  element('compile-status').textContent = ''
-  element('code-footer').hidden = true
   renderFile()
 }
 
@@ -242,12 +195,8 @@ function compileFailed(error: unknown): void {
   compilation = { kind: 'failed', message: errorMessage(error) }
   app.dataset.state = 'error'
   app.dataset.status = 'error'
-  element('compile-indicator').dataset.state = 'error'
-  element('compile-indicator').title = 'Shader compilation failed'
-  element('compile-status').textContent = compilation.message
-  element('compile-status').setAttribute('role', 'alert')
-  element('code-footer').hidden = false
-  element('code-footer').dataset.state = 'error'
+  previewError(new Error(compilation.message))
+  renderFile()
 }
 
 async function applyShader(shader: CompiledGhosttyShader, token: number): Promise<void> {
@@ -274,81 +223,32 @@ async function selectExample(example: Example): Promise<void> {
   compilation = { kind: 'compiling' }
   if (selectedFile === 'wgsl' || selectedFile === 'glsl') selectedFile = 'entry'
   renderSelection()
-  const start = performance.now()
   try {
     const shader = await example.compile()
     if (token !== request || disposed) return
-    compileSucceeded(shader, performance.now() - start)
+    compileSucceeded(shader)
     await applyShader(shader, token)
   } catch (error) {
     if (token === request && !disposed) compileFailed(error)
   }
 }
 
-function resetCopyButton(): void {
-  if (copyReset) clearTimeout(copyReset)
-  copyButton.title = 'Copy code'
-  copyButton.setAttribute('aria-label', 'Copy code')
-  delete copyButton.dataset.copied
-}
-
-async function copyCode(): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(currentCode)
-    copyButton.title = 'Copied'
-    copyButton.setAttribute('aria-label', 'Code copied')
-    copyButton.dataset.copied = 'true'
-  } catch {
-    copyButton.title = 'Copy unavailable'
-  }
-  copyReset = setTimeout(resetCopyButton, 1600)
-}
-
-function renderPauseState(): void {
-  pauseButton.setAttribute('aria-pressed', String(paused))
-  const icon = pauseButton.querySelector('path')
-  pauseButton.title = paused ? 'Resume animation' : 'Pause animation'
-  pauseButton.setAttribute('aria-label', pauseButton.title)
-  if (icon) icon.setAttribute('d', paused ? 'M4 2.5 13 8l-9 5.5z' : 'M4 3h3v10H4zm5 0h3v10H9z')
-}
-
-function togglePaused(): void {
-  paused = !paused
-  preview?.setPaused(paused)
-  renderPauseState()
-}
-
-function toggleEffect(): void {
-  effectEnabled = !effectEnabled
-  preview?.setEffectEnabled(effectEnabled)
-  effectButton.setAttribute('aria-pressed', String(effectEnabled))
-  effectButton.title = effectEnabled ? 'Turn shader off' : 'Turn shader on'
-  effectButton.setAttribute('aria-label', effectButton.title)
-}
-
 function teardown(): void {
   disposed = true
   preview?.dispose()
-  if (copyReset) clearTimeout(copyReset)
 }
 
 for (const example of examples) {
   const option = document.createElement('option')
   option.value = example.id
-  option.dataset.exampleId = example.id
   option.textContent = example.title
   select.append(option)
 }
+
 initializeFiles()
-renderPauseState()
 select.addEventListener('change', () => {
   const example = examples.find((candidate) => candidate.id === select.value)
   if (example) void selectExample(example)
-})
-pauseButton.addEventListener('click', togglePaused)
-effectButton.addEventListener('click', toggleEffect)
-copyButton.addEventListener('click', () => {
-  void copyCode()
 })
 window.addEventListener('pagehide', (event) => {
   if (!event.persisted) teardown()
