@@ -1,6 +1,6 @@
 {
   "name": "ghostty-web-shaderc",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Runtime ShaderToy and Ghostty GLSL compiler for WebGPU and WebGL2",
   "keywords": [
     "compiler",
@@ -48,14 +48,18 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "bun test ./test/unit",
-    "lint": "oxlint src test scripts",
+    "lint": "oxlint src test scripts examples",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "prepack": "bun run build",
     "verify": "bun run typecheck && bun run lint && bun run format:check && bun test ./test/unit && bun run build && bun run docs:check",
     "test:package": "bun scripts/package-test.ts",
     "test:browser": "bun scripts/browser-test.ts",
-    "docs:check": "bun scripts/uniform-reference.ts --check"
+    "docs:check": "bun scripts/uniform-reference.ts --check",
+    "showcase:dev": "bun run build && vite examples/showcase --host 127.0.0.1",
+    "showcase:build": "bun run build && bun scripts/showcase-build.ts",
+    "typecheck:showcase": "tsc --noEmit -p examples/showcase/tsconfig.json",
+    "test:showcase": "bun scripts/showcase-test.ts"
   },
   "dependencies": {
     "naga-wasm": "30.2.0"
@@ -63,6 +67,8 @@
   "devDependencies": {
     "@types/bun": "^1.4.2",
     "@webgpu/types": "0.1.74",
+    "ghostty-webgpu": "0.1.2",
+    "highlight.js": "11.12.0",
     "oxfmt": "0.70.0",
     "oxlint": "1.85.0",
     "playwright": "1.63.0",

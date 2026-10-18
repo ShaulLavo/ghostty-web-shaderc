@@ -114,3 +114,8 @@ or custom resource declarations. Applications chain compiled image passes themse
 GLSL features remain subject to Naga's frontend and WebGPU's validation rules.
 A shader that compiles in desktop Ghostty can still be rejected here. Errors remain visible to the caller.
 Compatibility claims cover the checked fixtures and rendered pixel tests, rather than every GLSL extension.
+
+Initialize values that depend on uniforms inside `mainImage`, rather than in global declarations.
+Naga 30.0.1 can accept a uniform-dependent global initializer and omit its assignment in the generated code.
+The showcase's cursor-warp example moves that assignment into `mainImage` and records the adaptation
+in its shader manifest. Constant global initializers are supported.
