@@ -1,56 +1,62 @@
 # Shader contract
 
-`compileGhosttyShader(source, { sourceName? })` accepts ShaderToy source with this entry point:
+The rules a shader must follow, and the bindings, coordinates, and resources the compiled output uses. For the pipeline behind these rules, see [How it works](../concepts/how-it-works.md). For function signatures, see the [API](api.md).
+
+## Source
+
+`compileGhosttyShader(source, { sourceName? })` accepts one ShaderToy-style image pass. The entry point is:
 
 ```glsl
-void mainImage(out vec4 fragColor, in vec2 fragCoord) {
-    fragColor = texture(iChannel0, fragCoord / iResolution.xy);
-}
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
 ```
 
-Naga parses GLSL, checks types, generates WGSL and GLSL ES 3.00, and validates the WGSL again.
-This package supplies the entry-point wrapper, Ghostty uniforms, and terminal texture binding.
-It does not use JavaScript evaluation or a second syntax parser.
+| Rule             | Detail                                                                                                               |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Entry point      | `mainImage` with an `out vec4` and a `vec2`. `inout` on the color works. Defining `main` is an error.                |
+| Input channel    | `iChannel0` only. It is a 2D floating-point texture with a sampler. `texture`, `texelFetch`, and `textureSize` work. |
+| Version line     | Any `#version` line is blanked. The compiler sets the version.                                                       |
+| Precision        | `precision` declarations and `lowp`, `mediump`, `highp` qualifiers are blanked. Both outputs use 32-bit floats.      |
+| Legacy sampling  | `texture2D` is defined as `texture`.                                                                                 |
+| Preprocessor     | Macros, comments, and CRLF line endings work. `#include` is a parse error.                                           |
+| Reserved names   | Identifiers beginning with `_ghostty` are an error outside comments.                                                 |
+| Custom resources | A resource other than the Ghostty uniform block and `iChannel0` is an error.                                         |
+| Custom I/O       | An input or output other than `mainImage` is an error. Depth and sample-mask outputs are an error.                   |
+| Unavailable      | ShaderToy buffer graphs, audio and video inputs, `iChannel1` to `iChannel3`, custom resource declarations.           |
 
-Both outputs use full 32-bit float precision. Source precision declarations and qualifiers are normalized.
-The compiler preserves user source line and column positions for diagnostics.
+GLSL features are subject to Naga's front end and to WebGPU validation. A shader that compiles in desktop Ghostty can be rejected here. Compatibility is established by the fixtures in `test/fixtures/` and by the pixel tests, not by a list of supported extensions.
 
-The result contains `glsl`, `wgsl`, `entryPoint: 'main'`, `schemaVersion: 1`,
-and `uniformLayout: 'ghostty-v1'`. It also includes the generated WebGL uniform block
-and sampler names under `webgl.uniformBlock` and `webgl.channel0`.
-Either name can be null when the compiler removes an unused resource.
+## Result
+
+The compiled object has `glsl`, `wgsl`, `entryPoint: 'main'`, `schemaVersion: 1`, `uniformLayout: 'ghostty-v1'`, and `webgl.uniformBlock` and `webgl.channel0`. Either WebGL name is `null` when the compiler removed an unused resource. See [`CompiledGhosttyShader`](api.md#compiledghosttyshader).
+
+Both outputs use 32-bit floats. Diagnostics report positions in your source, not in the generated wrapper.
 
 ## Vertex stage and coordinates
 
-The fragment input at location zero is a bottom-left normalized UV coordinate.
-`fragCoord` is that coordinate multiplied by `iResolution.xy`, in physical pixels.
-Direct `gl_FragCoord` reads use the same bottom-left coordinates, with Z zero and W one.
-The WebGPU wrapper adjusts Y derivatives to preserve GLSL `dFdy` direction.
-The dependency-free runtime entry provides matching vertex shaders:
+| Item                | Value                                                                                          |
+| ------------------- | ---------------------------------------------------------------------------------------------- |
+| Fragment input      | Location 0, a `vec2` UV with the origin at the bottom left of the output and the range 0 to 1. |
+| `fragCoord`         | UV multiplied by `iResolution.xy`, in physical pixels from the bottom left.                    |
+| `gl_FragCoord`      | Same XY as `fragCoord`, with Z zero and W one.                                                 |
+| `dFdy`              | WebGPU output negates `dFdy`, `dFdyFine`, and `dFdyCoarse` so the GLSL direction is preserved. |
+| Vertex shaders      | `FULLSCREEN_VERTEX_WGSL` and `FULLSCREEN_VERTEX_GLSL` from `ghostty-web-shaderc/runtime`.      |
+| Draw call           | One triangle, three vertices, no vertex buffers.                                               |
+| WebGPU entry points | Vertex `main`, fragment `main`.                                                                |
+| WebGL vertex output | Named `_vs2fs_location0`, matching the generated fragment input.                               |
 
-```ts
-import {
-  FULLSCREEN_VERTEX_GLSL,
-  FULLSCREEN_VERTEX_WGSL,
-  packShaderUniforms,
-  SHADER_UNIFORM_BYTE_LENGTH,
-} from 'ghostty-web-shaderc/runtime'
-```
+## Texture and color
 
-Draw one triangle with three vertices and no vertex buffers. The WebGPU vertex entry point is `main`.
-The WebGL vertex output name matches the generated fragment input name.
-
-`iChannel0` uses row zero as the logical bottom row in both APIs. Render an input texture
-with that orientation, or flip an existing top-first texture before using it as this input.
-An adapter can perform that flip in a GPU render pass. The compiler never reads texture pixels on the CPU.
-Pixel comparison tests normalize WebGPU and WebGL readback row order before comparison.
-
-The application chooses the color space, alpha convention, texture filter, and wrap mode.
-The compiler preserves shader output, including alpha, without applying tone mapping or premultiplication.
+| Item             | Value                                                                                                |
+| ---------------- | ---------------------------------------------------------------------------------------------------- |
+| `iChannel0` rows | Row zero is the logical bottom row in both APIs. A top-first texture must be flipped before binding. |
+| Color space      | Chosen by the application.                                                                           |
+| Alpha            | Chosen by the application. The compiler applies no premultiplication or tone mapping.                |
+| Filter and wrap  | Chosen by the application.                                                                           |
+| CPU access       | None. The compiler never reads texture pixels.                                                       |
 
 ## WebGPU bindings
 
-All resources occupy group zero:
+All resources are in group 0.
 
 | Binding | Resource                                           |
 | ------- | -------------------------------------------------- |
@@ -58,64 +64,40 @@ All resources occupy group zero:
 | 1       | `iChannel0` floating-point 2D texture              |
 | 2       | `iChannel0` sampler                                |
 
-Use an explicit bind group layout when the shader does not read every resource.
-The WebGPU pipeline's fragment entry point is `main`.
+A pipeline created with `layout: 'auto'` includes only the bindings the shader reads. A bind group that lists all three bindings needs an explicit bind group layout.
 
 ## WebGL2 bindings
 
-Use `shader.webgl.uniformBlock` with `getUniformBlockIndex` and `uniformBlockBinding`.
-Upload the same packed bytes to a uniform buffer at the selected block binding.
-Use `shader.webgl.channel0` with `getUniformLocation` and `uniform1i` to select the texture unit.
-Skip a resource whose reflected name is null.
+| Item                  | Value                                                                                                      |
+| --------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Uniform block         | `shader.webgl.uniformBlock`. Select it with `getUniformBlockIndex` and bind it with `uniformBlockBinding`. |
+| Uniform data          | The bytes from `packShaderUniforms`, uploaded to a uniform buffer at the block's binding point.            |
+| Texture unit          | `shader.webgl.channel0` names a sampler uniform. Set it with `getUniformLocation` and `uniform1i`.         |
+| Version and precision | Declared in `shader.glsl`. Pass the string to `shaderSource` unchanged.                                    |
 
-The generated GLSL declares its own version and precision. Pass it unchanged to `shaderSource`.
+A `null` name means the compiler removed that resource. Skip the corresponding call.
 
-## Uniform values
+## Uniforms
 
-The [generated uniform reference](uniforms.md) lists every field, byte offset, and array stride.
-Pack values with the GLSL names:
+Fields, byte offsets, strides, and value types are in the generated [uniform layout](uniforms.md). Pack them with `packShaderUniforms`, which takes the GLSL names. The application supplies all state: resolution, time, cursor, focus, colors, palette. No timer or animation loop runs inside the package.
 
-```ts
-const uniformBytes = packShaderUniforms({
-  iResolution: [canvas.width, canvas.height, 1],
-  iTime: performance.now() / 1000,
-  iFocus: document.hasFocus() ? 1 : 0,
-})
+## Known compiler limitation
+
+With naga-wasm 30.2.0, a global initializer that depends on a uniform is accepted, and its assignment is omitted from the generated code. Constant global initializers work.
+
+```glsl
+float k = iTime * 2.0; // accepted, but the WGSL declares k and never assigns it
+
+void mainImage(out vec4 c, in vec2 p) { c = vec4(k); }
 ```
 
-The application supplies state and schedules animation. No timer or animation loop runs inside this package.
+The workaround is to declare the variable globally and assign it inside `mainImage`:
 
-## Initialization and diagnostics
+```glsl
+float k;
 
-`compileGhosttyShader` initializes the compiler on demand. `initializeShaderCompiler()` allows prewarming.
-Browser hosts can override WASM loading before the first compile:
-
-```ts
-import { initializeShaderCompiler } from 'ghostty-web-shaderc'
-
-await initializeShaderCompiler({
-  wasm: new URL('/assets/shader-compiler.wasm', location.href),
-})
+void mainImage(out vec4 c, in vec2 p) {
+  k = iTime * 2.0;
+  c = vec4(k);
+}
 ```
-
-The override accepts a URL, response, bytes, or a compiled WebAssembly module. Node and Bun use
-the binary installed with naga-wasm. The browser default resolves that binary beside its JavaScript module.
-
-Failures throw `ShaderCompileError`. Its `kind` distinguishes input, initialization, parsing,
-validation, writing, and contract errors. `sourceName`, `formatted`, and `diagnostics` identify the source.
-Diagnostic entries contain a message and nullable line and column positions.
-
-## Source scope
-
-The package supports one ShaderToy image pass using `iChannel0` and Ghostty's uniform names.
-It does not implement ShaderToy buffer graphs, audio or video inputs, extra channel resources,
-or custom resource declarations. Applications chain compiled image passes themselves.
-
-GLSL features remain subject to Naga's frontend and WebGPU's validation rules.
-A shader that compiles in desktop Ghostty can still be rejected here. Errors remain visible to the caller.
-Compatibility claims cover the checked fixtures and rendered pixel tests, rather than every GLSL extension.
-
-Initialize values that depend on uniforms inside `mainImage`, rather than in global declarations.
-Naga 30.0.1 can accept a uniform-dependent global initializer and omit its assignment in the generated code.
-The showcase's cursor-warp example moves that assignment into `mainImage` and records the adaptation
-in its shader manifest. Constant global initializers are supported.

@@ -1,43 +1,31 @@
-# Run the live shader showcase
+# How to run the live shader showcase
 
-The showcase displays a Ghostty terminal with a Regular control and switchable shaders, their TypeScript entry points,
-the input GLSL, and the WGSL and GLSL generated in your browser. All source panes are read-only.
+The showcase draws a scripted Ghostty terminal session through your choice of shader. Next to the terminal it shows the TypeScript entry point, the input GLSL, and the WGSL and GLSL that your browser just compiled. Every source pane is read-only. You can see it work before you write any code.
 
-From a source checkout, run:
+## Run it from a checkout
+
+You need Bun 1.4.4 and a clone of the repository.
 
 ```sh
 bun install --frozen-lockfile
 bun run showcase:dev --port 4177
 ```
 
-Open the local URL printed by Vite. To produce a static deployment:
+Open `http://127.0.0.1:4177/`. The command builds the package first, then starts Vite. Pick a shader from the menu in the top bar. The terminal redraws through the new shader, and the four tabs (`index.ts`, `shader.glsl`, `output.wgsl`, `output.glsl`) update.
+
+<img alt="The showcase with the Inside the Matrix shader selected. Falling green glyphs fill the terminal pane behind the Ghostty logo. The right pane shows index.ts, with tabs for shader.glsl, output.wgsl and output.glsl." src="../assets/showcase-matrix.webp">
+
+The menu has a pass-through control named Regular and five shaders: Better CRT, Inside the Matrix, Fireworks, Water, and Cursor lightning. Compilation runs in your browser through `compileGhosttyShader` each time you select an example.
+
+## Build a static copy
 
 ```sh
 bun run showcase:build
 ```
 
-Serve `.artifacts/showcase/` over HTTPS or localhost. The directory includes JavaScript, WASM,
-bundled shader sources, and their license notices. It can be served by any static host.
-Shaders are bundled locally; changing examples does not fetch source from GitHub.
+The output is `.artifacts/showcase/`. It holds the JavaScript, both WASM files, the shader sources, and the license notices. Serve it from any static host over HTTPS or from localhost. Nothing is fetched from GitHub at run time.
 
-The terminal shows a scripted demo session. Shader compilation runs through
-`compileGhosttyShader` when an example is selected. The TypeScript pane displays the actual
-entry module called by the showcase, and the generated panes display its returned output.
-
-The sample integration lives under `examples/showcase/`. Its post-processing adapter belongs
-to this example and is separate from the compiler package's runtime exports.
-
-The adapter coalesces terminal updates and animation ticks into one effect draw per browser frame.
-It allows one unfinished effect draw at a time, using WebGPU queue completion or a nonblocking
-WebGL2 fence. Pending changes render when the GPU is ready. Shader time follows elapsed active
-time, and frame uniforms describe the draws actually submitted. The bundled shaders and terminal
-resolution remain unchanged. A costly shader can still run at a lower frame rate on a slower GPU.
-
-The Regular entry is a local pass-through control. The [bundled shader manifest](../../examples/showcase/SHADER_LICENSES.md) records authors,
-licenses, and the exact upstream revision. The five bundled examples come from
-[0xhckr/ghostty-shaders](https://github.com/0xhckr/ghostty-shaders).
-
-## Verification
+## Check it
 
 ```sh
 bun run typecheck:showcase
@@ -46,14 +34,10 @@ bunx playwright install chromium
 bun run test:showcase
 ```
 
-The browser check exercises example selection, generated-code panes, visible GPU output, the
-WebGL2 fallback, rapid switching, the narrow mobile layout, and visible load errors. It owns its
-browser, server, and temporary profile and removes them before it exits.
+`test:showcase` drives example selection, the generated-code panes, visible GPU output, the WebGL2 fallback, rapid switching, the narrow mobile layout, and visible load errors. It starts its own browser, server, and temporary profile, and removes them when it exits.
 
-## iOS Safari
+## Where the code lives
 
-The minimal layout and upstream examples were checked on an iPhone 17 Pro simulator running iOS
-26.5 Safari. The simulator selected WebGL2. Chromium GPU tests cover the WebGPU path.
+The sample integration is in `examples/showcase/`. Its terminal renderer is [ghostty-webgpu](https://github.com/ShaulLavo/fregat/tree/main/ghostty-webgpu), a dev dependency that only the showcase uses. The post-processing adapter in `gpu-pass.ts` and `preview.ts` belongs to the example, not to the package. Copy from it, but do not expect it as an export.
 
-Runtime compilation releases WASM handles explicitly. It does not require `Symbol.dispose`, which
-was unavailable in the tested Safari runtime.
+The bundled shaders are not this project's work. [SHADER_LICENSES.md](../../examples/showcase/SHADER_LICENSES.md) lists the author, license, and upstream commit of each one.
