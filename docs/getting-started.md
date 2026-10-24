@@ -1,65 +1,143 @@
-# Use ghostty-web-shaderc
+# Getting started
 
-Compile Ghostty and ShaderToy GLSL strings to WebGPU WGSL and WebGL2 GLSL at runtime.
-The compiler uses Naga in WebAssembly. It does not depend on Three.js, Tree-sitter, or a terminal renderer.
+In this tutorial you compile a Ghostty shader, read a compile error, pack uniform values, and precompile a shader to JSON. It takes about ten minutes and needs only Node. Drawing the result on a canvas comes next, in the [WebGPU](guides/draw-with-webgpu.md) and [WebGL2](guides/draw-with-webgl2.md) guides.
+
+You need Node 24.12 or later.
+
+## Install the package
+
+The package is not on npm yet. Install the tarball from the v0.0.2 release into an empty folder:
 
 ```sh
+mkdir shaderc-tour && cd shaderc-tour
+npm init -y
 npm install https://github.com/ShaulLavo/ghostty-web-shaderc/releases/download/v0.0.2/ghostty-web-shaderc-0.0.2.tgz
 ```
 
-```ts
+## Compile a shader
+
+Save this as `step1.mjs`. The shader multiplies the terminal texture by a pulse that follows `iTime`.
+
+```js
 import { compileGhosttyShader } from 'ghostty-web-shaderc'
 
-const shader = await compileGhosttyShader(`
+const source = `
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
-    fragColor = texture(iChannel0, uv);
+    float pulse = 0.5 + 0.5 * sin(iTime);
+    fragColor = texture(iChannel0, uv) * pulse;
 }
-`)
+`
 
-// Pass these to your renderer's shader pipeline.
-shader.wgsl
-shader.glsl
+const shader = await compileGhosttyShader(source, { sourceName: 'pulse.glsl' })
+
+console.log(shader.entryPoint)
+console.log(shader.uniformLayout)
+console.log(shader.webgl)
+console.log(shader.wgsl.includes('@fragment'))
+console.log(shader.glsl.startsWith('#version 300 es'))
 ```
 
-The package is distributed as a public GitHub release tarball. npm registry publication is pending.
-Node requires version 24.12 or later. Bun 1.4.2 is also tested.
-
-The first call loads and initializes the compiler. Concurrent calls share that initialization.
-Later calls reuse the WASM instance. Compilation does not execute the shader as JavaScript.
-
-The package compiles shaders. Applications own render targets, animation, shader chaining,
-GPU resource disposal, and renderer integration. Installing this package does not add shader
-support to ghostty-webgpu by itself.
-
-## Runtime and build-time use
-
-Runtime compilation is the default. Use the same compiler in Node, Bun, a browser, or a Web Worker.
-The browser's bundler must serve the compiler's WASM asset. Vite support is covered by the package tests.
-The WASM compiler requires CSP `script-src 'wasm-unsafe-eval'` when a page uses a restrictive policy.
-It does not require JavaScript `unsafe-eval`, generated modules, or `blob:` script access.
-
-For optional precompilation, use the CLI:
+Run it:
 
 ```sh
-npx --no-install ghostty-web-shaderc crt.glsl --out crt.shader.json
-cat crt.glsl | npx --no-install ghostty-web-shaderc - > crt.shader.json
+node step1.mjs
 ```
 
-The JSON contains both shader strings and their binding metadata. A precompiled consumer can
-import the dependency-free `ghostty-web-shaderc/runtime` helpers without loading the compiler.
+```text
+main
+ghostty-v1
+{
+  uniformBlock: 'GhosttyUniforms_block_0Fragment',
+  channel0: '_group_0_binding_1_fs'
+}
+true
+true
+```
 
-See [the shader contract](reference/shader-contract.md) for bindings, uniforms, coordinates, and supported source.
+`shader.wgsl` is a fragment program for WebGPU. `shader.glsl` is a GLSL ES 3.00 fragment program for WebGL2. Both entry points are named `main`. The two names under `webgl` are what you pass to `getUniformBlockIndex` and `getUniformLocation` later. The first call loads the compiler, so it takes longer than the calls after it.
 
-## Development
+## Read an error
+
+Save this as `step2.mjs`. The shader uses a variable that does not exist.
+
+```js
+import { compileGhosttyShader, ShaderCompileError } from 'ghostty-web-shaderc'
+
+try {
+  await compileGhosttyShader(
+    `void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    fragColor = vec4(glow);
+}`,
+    { sourceName: 'broken.glsl' },
+  )
+} catch (error) {
+  if (!(error instanceof ShaderCompileError)) throw error
+  console.log(error.kind)
+  console.log(error.diagnostics)
+  console.log(error.formatted)
+}
+```
 
 ```sh
-bun install --frozen-lockfile
-bun run verify
-bun run test:package
-bunx playwright install chromium
-bun run test:browser
+node step2.mjs
 ```
 
-Browser tests compile shaders through a packed Vite consumer, create real WebGPU and WebGL2
-pipelines, and compare pixel output. Software GPU runs establish correctness, not performance.
+```text
+parse
+[ { message: 'Unknown variable: glow', line: 2, column: 22 } ]
+error: Unknown variable: glow
+   ┌─ broken.glsl:2:22
+   │
+2 │     fragColor = vec4(glow);
+   │                      ^^^^
+```
+
+Line 2, column 22 is a position in your source. The compiler adds a prefix and a suffix around your code, and it maps every position back before it reports. Parse and validation errors carry a line and column in `diagnostics`. Some errors from the package itself, such as a missing `mainImage`, carry `null` positions.
+
+## Pack uniform values
+
+Save this as `step3.mjs`. Your shader reads uniforms such as `iResolution` and `iTime` from one buffer. The `/runtime` export fills that buffer for you.
+
+```js
+import { packShaderUniforms, SHADER_UNIFORM_BYTE_LENGTH } from 'ghostty-web-shaderc/runtime'
+
+const bytes = packShaderUniforms({ iResolution: [800, 600, 1], iTime: 1.5 })
+
+console.log(SHADER_UNIFORM_BYTE_LENGTH)
+console.log(bytes.byteLength)
+console.log(new Float32Array(bytes, 0, 4))
+```
+
+```sh
+node step3.mjs
+```
+
+```text
+4496
+4496
+Float32Array(4) [ 800, 600, 1, 1.5 ]
+```
+
+`iResolution` sits at byte 0 and `iTime` at byte 12. You upload these bytes to a GPU uniform buffer on every frame. The full table of offsets is in the [uniform layout](reference/uniforms.md).
+
+## Precompile with the CLI
+
+The CLI writes the same result as JSON, so a build step can compile once and ship the file.
+
+```sh
+cat > shader.glsl <<'EOF'
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    fragColor = texture(iChannel0, fragCoord / iResolution.xy);
+}
+EOF
+npx --no-install ghostty-web-shaderc shader.glsl --out shader.json
+```
+
+`shader.json` has the keys `schemaVersion`, `uniformLayout`, `glsl`, `wgsl`, `entryPoint`, and `webgl`.
+
+## Next
+
+- [Draw with WebGPU](guides/draw-with-webgpu.md) or [draw with WebGL2](guides/draw-with-webgl2.md) to put the output on a canvas.
+- [How it works](concepts/how-it-works.md) for the pipeline behind these calls.
+- [Shader contract](reference/shader-contract.md) for what a shader may and may not do.
