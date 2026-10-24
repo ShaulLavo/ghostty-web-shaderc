@@ -12,7 +12,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 }
 `)
 
-console.log(shader.wgsl.match(/fn mainImage[\s\S]*?\n}/)[0])
+console.log(shader.wgsl.match(/fn mainImage[\s\S]*?\n}/)?.[0])
 console.log(shader.webgl)
 ```
 
@@ -56,7 +56,7 @@ _One shader goes in and two programs come out. The renderer on the right is your
 
 ## Quick start
 
-The package is not on npm yet. Install the tarball from the [v0.0.2 release](https://github.com/ShaulLavo/ghostty-web-shaderc/releases/tag/v0.0.2). You need Node 24.12 or later.
+The package is not on npm yet. Install the tarball from the [v0.0.2 release](https://github.com/ShaulLavo/ghostty-web-shaderc/releases/tag/v0.0.2). You need Node 24.12 or later. That is the `engines` floor in `package.json`, CI runs Node 24, and Node 24 runs the `.ts` examples below without a build step.
 
 1. Install it.
 
@@ -66,10 +66,10 @@ The package is not on npm yet. Install the tarball from the [v0.0.2 release](htt
 
    The same URL installs with `pnpm add`, `yarn add`, and `bun add`. See [Package managers](#package-managers).
 
-2. Save the example above as `demo.mjs` and run it.
+2. Save the example above as `demo.mts` and run it.
 
    ```sh
-   node demo.mjs
+   node demo.mts
    ```
 
    You see the output above.
@@ -93,21 +93,19 @@ The package is not on npm yet. Install the tarball from the [v0.0.2 release](htt
 
 The tarball install was run end to end, with the demo script and the CLI, on Node 24.22.1 with these tools:
 
-| Tool | Version | Install command             | Result |
-| ---- | ------- | --------------------------- | ------ |
-| npm  | 11.19.1 | `npm install <tarball-url>` | Works  |
-| pnpm | 8.11.0  | `pnpm add <tarball-url>`    | Works  |
-| Yarn | 1.22.22 | `yarn add <tarball-url>`    | Works  |
-| Bun  | 1.4.4   | `bun add <tarball-url>`     | Works  |
+- npm 11.19.1: `npm install <tarball-url>`
+- pnpm 8.11.0: `pnpm add <tarball-url>`
+- Yarn 1.22.22: `yarn add <tarball-url>`
+- Bun 1.4.4: `bun add <tarball-url>`
 
-Bun also runs the demo (`bun demo.mjs`) and the CLI (`bunx --no-install ghostty-web-shaderc`). Yarn 2 and later were not tried.
+All four worked. Bun also runs the demo (`bun demo.mts`) and the CLI (`bunx --no-install ghostty-web-shaderc`). Yarn 2 and later were not tried.
 
 ### In a browser
 
 Install the same tarball into your web project and import the package from your bundler entry. A Vite 8.3.5 production build of this page emitted the 2.0 MB `naga_bg-*.wasm` file as an asset, and the compiled shader came back in Chromium:
 
-```js
-// main.js
+```ts
+// main.ts
 import { compileGhosttyShader } from 'ghostty-web-shaderc'
 
 const shader = await compileGhosttyShader(`
@@ -122,14 +120,12 @@ Vite is the only bundler tested. [Run in the browser](docs/guides/run-in-the-bro
 
 ## What you can do
 
-| Task                                           | Guide                                                             |
-| ---------------------------------------------- | ----------------------------------------------------------------- |
-| Draw a compiled shader with WebGPU             | [Draw with WebGPU](docs/guides/draw-with-webgpu.md)               |
-| Draw a compiled shader with WebGL2             | [Draw with WebGL2](docs/guides/draw-with-webgl2.md)               |
-| Bundle the compiler for a page or a Web Worker | [Run in the browser](docs/guides/run-in-the-browser.md)           |
-| Compile ahead of time and ship JSON            | [Precompile with the CLI](docs/guides/precompile-with-the-cli.md) |
-| See five shaders on a Ghostty terminal         | [Run the showcase](docs/guides/run-the-showcase.md)               |
-| Find out why a shader fails                    | [Troubleshooting](docs/troubleshooting.md)                        |
+- [Draw a compiled shader with WebGPU](docs/guides/draw-with-webgpu.md)
+- [Draw a compiled shader with WebGL2](docs/guides/draw-with-webgl2.md)
+- [Bundle the compiler for a page or a Web Worker](docs/guides/run-in-the-browser.md)
+- [Compile ahead of time and ship JSON](docs/guides/precompile-with-the-cli.md)
+- [See five shaders on a Ghostty terminal](docs/guides/run-the-showcase.md)
+- [Find out why a shader fails](docs/troubleshooting.md)
 
 ## How it works
 

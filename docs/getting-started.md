@@ -2,15 +2,13 @@
 
 In this tutorial you compile a Ghostty shader, read a compile error, pack uniform values, and precompile a shader to JSON. It takes about ten minutes and needs only Node. Drawing the result on a canvas comes next, in the [WebGPU](guides/draw-with-webgpu.md) and [WebGL2](guides/draw-with-webgl2.md) guides.
 
-You need Node 24.12 or later.
+You need Node 24.12 or later. That is the `engines` floor in `package.json`, and Node 24 runs the `.mts` files below directly, so there is no build step.
 
 ## Install the package
 
-The package is not on npm yet. Install the tarball from the v0.0.2 release into an empty folder:
+The package is not on npm yet. Install the tarball from the v0.0.2 release:
 
 ```sh
-mkdir shaderc-tour && cd shaderc-tour
-npm init -y
 npm install https://github.com/ShaulLavo/ghostty-web-shaderc/releases/download/v0.0.2/ghostty-web-shaderc-0.0.2.tgz
 ```
 
@@ -18,9 +16,9 @@ pnpm, Yarn 1, and Bun install the same URL too. See [Package managers](../README
 
 ## Compile a shader
 
-Save this as `step1.mjs`. The shader multiplies the terminal texture by a pulse that follows `iTime`.
+Save this as `step1.mts`. The shader multiplies the terminal texture by a pulse that follows `iTime`.
 
-```js
+```ts
 import { compileGhosttyShader } from 'ghostty-web-shaderc'
 
 const source = `
@@ -43,7 +41,7 @@ console.log(shader.glsl.startsWith('#version 300 es'))
 Run it:
 
 ```sh
-node step1.mjs
+node step1.mts
 ```
 
 ```text
@@ -61,9 +59,9 @@ true
 
 ## Read an error
 
-Save this as `step2.mjs`. The shader uses a variable that does not exist.
+Save this as `step2.mts`. The shader uses a variable that does not exist.
 
-```js
+```ts
 import { compileGhosttyShader, ShaderCompileError } from 'ghostty-web-shaderc'
 
 try {
@@ -82,7 +80,7 @@ try {
 ```
 
 ```sh
-node step2.mjs
+node step2.mts
 ```
 
 ```text
@@ -99,9 +97,9 @@ Line 2, column 22 is a position in your source. The compiler adds a prefix and a
 
 ## Pack uniform values
 
-Save this as `step3.mjs`. Your shader reads uniforms such as `iResolution` and `iTime` from one buffer. The `/runtime` export fills that buffer for you.
+Save this as `step3.mts`. Your shader reads uniforms such as `iResolution` and `iTime` from one buffer. The `/runtime` export fills that buffer for you.
 
-```js
+```ts
 import { packShaderUniforms, SHADER_UNIFORM_BYTE_LENGTH } from 'ghostty-web-shaderc/runtime'
 
 const bytes = packShaderUniforms({ iResolution: [800, 600, 1], iTime: 1.5 })
@@ -112,7 +110,7 @@ console.log(new Float32Array(bytes, 0, 4))
 ```
 
 ```sh
-node step3.mjs
+node step3.mts
 ```
 
 ```text
