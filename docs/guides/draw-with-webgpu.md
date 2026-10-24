@@ -4,7 +4,7 @@ This guide draws a compiled shader onto a canvas with the WebGPU API. It assumes
 
 The input texture is a 2x2 test image so you can see the result without a terminal. Replace it with your own texture. Row zero of that texture must be the bottom row of the picture. See [texture orientation](../concepts/how-it-works.md#texture-orientation).
 
-```js
+```ts
 import { compileGhosttyShader } from 'ghostty-web-shaderc'
 import {
   FULLSCREEN_VERTEX_WGSL,
@@ -23,11 +23,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 const pixels = new Uint8Array([255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 0, 255])
 
 const canvas = document.querySelector('canvas')
+if (!canvas) throw new Error('The page has no canvas')
 const shader = await compileGhosttyShader(source)
 
 const adapter = await navigator.gpu.requestAdapter()
+if (!adapter) throw new Error('No WebGPU adapter')
 const device = await adapter.requestDevice()
 const context = canvas.getContext('webgpu')
+if (!context) throw new Error('WebGPU is not available')
 const format = navigator.gpu.getPreferredCanvasFormat()
 context.configure({ device, format })
 
@@ -78,7 +81,7 @@ const bindGroup = device.createBindGroup({
   ],
 })
 
-function draw(seconds) {
+const draw = (seconds: number): void => {
   const uniforms = packShaderUniforms({
     iResolution: [canvas.width, canvas.height, 1],
     iTime: seconds,
@@ -105,7 +108,7 @@ draw(Math.PI / 2)
 
 To animate, call `draw` from `requestAnimationFrame` with elapsed seconds. The package runs no timer of its own.
 
-## Points that matter
+## Details that matter
 
 - **Binding layout.** Create the bind group layout yourself, as shown. With `layout: 'auto'`, a shader that never reads the texture gets a layout without bindings 1 and 2, and a bind group that lists all three bindings fails validation.
 - **Entry points.** The vertex entry point and the fragment entry point are both named `main`. Use `shader.entryPoint` for the fragment stage.

@@ -4,7 +4,7 @@ This guide draws a compiled shader onto a canvas with a WebGL2 context. The same
 
 The input texture is a 2x2 test image so you can see the result without a terminal. Replace it with your own texture. Row zero of that texture must be the bottom row of the picture. See [texture orientation](../concepts/how-it-works.md#texture-orientation).
 
-```js
+```ts
 import { compileGhosttyShader } from 'ghostty-web-shaderc'
 import {
   FULLSCREEN_VERTEX_GLSL,
@@ -23,15 +23,18 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 const pixels = new Uint8Array([255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 0, 255])
 
 const canvas = document.querySelector('canvas')
+if (!canvas) throw new Error('The page has no canvas')
 const shader = await compileGhosttyShader(source)
 const gl = canvas.getContext('webgl2')
+if (!gl) throw new Error('WebGL2 is not available')
 
-function compile(type, text) {
+const compile = (type: number, text: string): WebGLShader => {
   const object = gl.createShader(type)
+  if (!object) throw new Error('Could not create a shader object')
   gl.shaderSource(object, text)
   gl.compileShader(object)
   if (!gl.getShaderParameter(object, gl.COMPILE_STATUS)) {
-    throw new Error(gl.getShaderInfoLog(object))
+    throw new Error(gl.getShaderInfoLog(object) ?? 'Shader compilation failed')
   }
   return object
 }
@@ -41,7 +44,7 @@ gl.attachShader(program, compile(gl.VERTEX_SHADER, FULLSCREEN_VERTEX_GLSL))
 gl.attachShader(program, compile(gl.FRAGMENT_SHADER, shader.glsl))
 gl.linkProgram(program)
 if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-  throw new Error(gl.getProgramInfoLog(program))
+  throw new Error(gl.getProgramInfoLog(program) ?? 'Program link failed')
 }
 gl.useProgram(program)
 
@@ -70,7 +73,7 @@ gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
 
 gl.bindVertexArray(gl.createVertexArray())
 
-function draw(seconds) {
+const draw = (seconds: number): void => {
   const uniforms = packShaderUniforms({
     iResolution: [canvas.width, canvas.height, 1],
     iTime: seconds,
@@ -88,7 +91,7 @@ draw(Math.PI / 2)
 
 To animate, call `draw` from `requestAnimationFrame` with elapsed seconds. The package runs no timer of its own.
 
-## Points that matter
+## Details that matter
 
 - **Pass the generated GLSL unchanged.** It declares its own `#version 300 es` and precision.
 - **Uniform block binding.** The uniform block is bound to binding point 0 here. Any point works if the buffer and `uniformBlockBinding` agree.

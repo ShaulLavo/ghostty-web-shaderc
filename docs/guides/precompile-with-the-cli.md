@@ -38,7 +38,7 @@ error: Unknown variable: nope
 
 The JSON has the same shape as the result of `compileGhosttyShader`. Pass it to the draw code from the [WebGPU](draw-with-webgpu.md) or [WebGL2](draw-with-webgl2.md) guide in place of `shader`:
 
-```js
+```ts
 import shader from './shaders/crt.shader.json' with { type: 'json' }
 import { packShaderUniforms } from 'ghostty-web-shaderc/runtime'
 ```

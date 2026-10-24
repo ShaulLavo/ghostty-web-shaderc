@@ -15,7 +15,7 @@ The repository's package test builds a consumer with Vite 8 and `worker: { forma
 
 Compilation loads lazily. The first `compileGhosttyShader` call fetches and instantiates the WASM module, and later calls reuse it. To pay that cost before the user needs a shader, call `initializeShaderCompiler()` once at startup:
 
-```js
+```ts
 import { initializeShaderCompiler } from 'ghostty-web-shaderc'
 
 await initializeShaderCompiler()
@@ -25,11 +25,11 @@ await initializeShaderCompiler()
 
 Compile off the main thread so a large shader does not block input. The browser test compiles in a module worker like this one.
 
-```js
-// worker.js
+```ts
+// worker.ts
 import { compileGhosttyShader } from 'ghostty-web-shaderc'
 
-self.onmessage = async (event) => {
+self.onmessage = async (event: MessageEvent<string>) => {
   try {
     self.postMessage({ shader: await compileGhosttyShader(event.data) })
   } catch (error) {
@@ -38,9 +38,9 @@ self.onmessage = async (event) => {
 }
 ```
 
-```js
-// main.js
-const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })
+```ts
+// main.ts
+const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })
 worker.onmessage = (event) => console.log(event.data.shader ?? event.data.error)
 worker.postMessage('void mainImage(out vec4 color, in vec2 coord) { color = vec4(1.0); }')
 ```
@@ -51,7 +51,7 @@ worker.postMessage('void mainImage(out vec4 color, in vec2 coord) { color = vec4
 
 If your bundler cannot emit the asset, or you host it on a CDN, point the compiler at the file before the first compile:
 
-```js
+```ts
 import { initializeShaderCompiler } from 'ghostty-web-shaderc'
 
 await initializeShaderCompiler({
