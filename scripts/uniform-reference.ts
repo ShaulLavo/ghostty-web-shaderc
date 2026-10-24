@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { SHADER_UNIFORM_BYTE_LENGTH, SHADER_UNIFORM_FIELDS } from '../src/runtime.js'
 
-const path = new URL('../docs/uniforms.md', import.meta.url)
+const path = new URL('../docs/reference/uniforms.md', import.meta.url)
 const header = ['Name', 'Shader type', 'Offset', 'Element stride']
 const cells = SHADER_UNIFORM_FIELDS.map((field) => {
   const suffix = field.count === 1 ? '' : `[${field.count}]`

@@ -12,6 +12,6 @@ import { compileGhosttyShader } from 'ghostty-web-shaderc'
 const { wgsl, glsl } = await compileGhosttyShader(shaderSource)
 ```
 
-[Runtime and CLI](docs/getting-started.md) · [Shader contract](docs/shader-contract.md) · [Live showcase setup](docs/showcase.md)
+[Runtime and CLI](docs/getting-started.md) · [Shader contract](docs/reference/shader-contract.md) · [Live showcase setup](docs/guides/run-the-showcase.md)
 
 [Public release](https://github.com/ShaulLavo/ghostty-web-shaderc/releases) · MIT license

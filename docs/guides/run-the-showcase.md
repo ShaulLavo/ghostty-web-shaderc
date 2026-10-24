@@ -33,7 +33,7 @@ WebGL2 fence. Pending changes render when the GPU is ready. Shader time follows 
 time, and frame uniforms describe the draws actually submitted. The bundled shaders and terminal
 resolution remain unchanged. A costly shader can still run at a lower frame rate on a slower GPU.
 
-The Regular entry is a local pass-through control. The [bundled shader manifest](../examples/showcase/SHADER_LICENSES.md) records authors,
+The Regular entry is a local pass-through control. The [bundled shader manifest](../../examples/showcase/SHADER_LICENSES.md) records authors,
 licenses, and the exact upstream revision. The five bundled examples come from
 [0xhckr/ghostty-shaders](https://github.com/0xhckr/ghostty-shaders).
 

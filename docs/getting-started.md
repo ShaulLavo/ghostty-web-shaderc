@@ -49,7 +49,7 @@ cat crt.glsl | npx --no-install ghostty-web-shaderc - > crt.shader.json
 The JSON contains both shader strings and their binding metadata. A precompiled consumer can
 import the dependency-free `ghostty-web-shaderc/runtime` helpers without loading the compiler.
 
-See [the shader contract](shader-contract.md) for bindings, uniforms, coordinates, and supported source.
+See [the shader contract](reference/shader-contract.md) for bindings, uniforms, coordinates, and supported source.
 
 ## Development
 
