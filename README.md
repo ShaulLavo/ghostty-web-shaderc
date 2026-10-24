@@ -36,7 +36,7 @@ fn mainImage(fragColor: ptr<function, vec4<f32>>, fragCoord: vec2<f32>) {
 }
 ```
 
-You get `shader.wgsl` for a WebGPU pipeline and `shader.glsl` for a WebGL2 program, plus the WebGL names to bind. Ghostty shaders are plain GLSL files, and browsers cannot run them directly. This package is the missing compile step.
+The example prints two things: the `mainImage` function from `shader.wgsl`, and `shader.webgl`, the two names you bind in WebGL2. `shader.wgsl` is the full program for a WebGPU pipeline. `shader.glsl` is the full program for a WebGL2 program, and the example does not print it. Ghostty shaders are plain GLSL files, and browsers cannot run them directly. This package is the missing compile step.
 
 - **Same source, both APIs.** One `mainImage` shader becomes WGSL and GLSL ES 3.00 with the same uniform layout and the same coordinates.
 - **Errors point at your lines.** A diagnostic reports the line and column in your source, not in the generated wrapper.
@@ -64,6 +64,8 @@ The package is not on npm yet. Install the tarball from the [v0.0.2 release](htt
    npm install https://github.com/ShaulLavo/ghostty-web-shaderc/releases/download/v0.0.2/ghostty-web-shaderc-0.0.2.tgz
    ```
 
+   The same URL installs with `pnpm add`, `yarn add`, and `bun add`. See [Package managers](#package-managers).
+
 2. Save the example above as `demo.mjs` and run it.
 
    ```sh
@@ -86,6 +88,37 @@ The package is not on npm yet. Install the tarball from the [v0.0.2 release](htt
    `shader.json` holds `wgsl`, `glsl`, and the WebGL binding names.
 
 [Getting started](docs/getting-started.md) takes this to a working draw call.
+
+### Package managers
+
+The tarball install was run end to end, with the demo script and the CLI, on Node 24.22.1 with these tools:
+
+| Tool | Version | Install command             | Result |
+| ---- | ------- | --------------------------- | ------ |
+| npm  | 11.19.1 | `npm install <tarball-url>` | Works  |
+| pnpm | 8.11.0  | `pnpm add <tarball-url>`    | Works  |
+| Yarn | 1.22.22 | `yarn add <tarball-url>`    | Works  |
+| Bun  | 1.4.4   | `bun add <tarball-url>`     | Works  |
+
+Bun also runs the demo (`bun demo.mjs`) and the CLI (`bunx --no-install ghostty-web-shaderc`). Yarn 2 and later were not tried.
+
+### In a browser
+
+Install the same tarball into your web project and import the package from your bundler entry. A Vite 8.3.5 production build of this page emitted the 2.0 MB `naga_bg-*.wasm` file as an asset, and the compiled shader came back in Chromium:
+
+```js
+// main.js
+import { compileGhosttyShader } from 'ghostty-web-shaderc'
+
+const shader = await compileGhosttyShader(`
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    fragColor = texture(iChannel0, fragCoord / iResolution.xy);
+}
+`)
+document.body.textContent = shader.wgsl
+```
+
+Vite is the only bundler tested. [Run in the browser](docs/guides/run-in-the-browser.md) covers Web Workers, serving the WASM file yourself, and the CSP.
 
 ## What you can do
 

@@ -14,6 +14,8 @@ npm init -y
 npm install https://github.com/ShaulLavo/ghostty-web-shaderc/releases/download/v0.0.2/ghostty-web-shaderc-0.0.2.tgz
 ```
 
+pnpm, Yarn 1, and Bun install the same URL too. See [Package managers](../README.md#package-managers).
+
 ## Compile a shader
 
 Save this as `step1.mjs`. The shader multiplies the terminal texture by a pulse that follows `iTime`.
