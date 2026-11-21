@@ -3,7 +3,7 @@ import { access, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/p
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { compileGhosttyShader, type CompiledGhosttyShader } from 'ghostty-web-shaderc'
+import { compileGhosttyShader, type CompiledGhosttyShader } from '@ghostty-webgpu/shaderc'
 import { chromium } from 'playwright'
 import type { Browser, BrowserContext, Locator, Page } from 'playwright'
 import { installPacingProbe } from './showcase-pacing.js'

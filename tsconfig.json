@@ -13,8 +13,8 @@
     "noEmit": true,
     "types": ["bun", "@webgpu/types"],
     "paths": {
-      "ghostty-web-shaderc": ["./src/index.ts"],
-      "ghostty-web-shaderc/runtime": ["./src/runtime.ts"]
+      "@ghostty-webgpu/shaderc": ["./src/index.ts"],
+      "@ghostty-webgpu/shaderc/runtime": ["./src/runtime.ts"]
     }
   },
   "include": ["src", "test", "scripts"]

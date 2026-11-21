@@ -1,4 +1,4 @@
-import { packShaderUniforms } from 'ghostty-web-shaderc/runtime'
+import { packShaderUniforms } from '@ghostty-webgpu/shaderc/runtime'
 
 export const width = 2
 export const height = 2

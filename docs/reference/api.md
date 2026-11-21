@@ -1,11 +1,11 @@
 # API
 
-The package has two entry points. `ghostty-web-shaderc` exports the compiler and everything in the runtime entry. `ghostty-web-shaderc/runtime` exports only the items that do not need the compiler. Types come from `dist/index.d.ts` and `dist/runtime.d.ts`.
+The package has two entry points. `ghostty-web-shaderc` exports the compiler and everything in the runtime entry. `@ghostty-webgpu/shaderc/runtime` exports only the items that do not need the compiler. Types come from `dist/index.d.ts` and `dist/runtime.d.ts`.
 
-| Entry point                   | Exports                                                                                                                                                                                                                                                          |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ghostty-web-shaderc`         | `compileGhosttyShader`, `initializeShaderCompiler`, `ShaderCompileError`, and every runtime export. Types: `CompileOptions`, `InitializeShaderCompilerOptions`, `ShaderCompileErrorKind`, `ShaderDiagnostic`.                                                    |
-| `ghostty-web-shaderc/runtime` | `FULLSCREEN_VERTEX_GLSL`, `FULLSCREEN_VERTEX_WGSL`, `packShaderUniforms`, `SHADER_UNIFORM_BYTE_LENGTH`, `SHADER_UNIFORM_FIELDS`. Types: `CompiledGhosttyShader`, `ShaderUniformField`, `ShaderUniformValues`, `ShaderVector2`, `ShaderVector3`, `ShaderVector4`. |
+| Entry point                       | Exports                                                                                                                                                                                                                                                          |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ghostty-web-shaderc`             | `compileGhosttyShader`, `initializeShaderCompiler`, `ShaderCompileError`, and every runtime export. Types: `CompileOptions`, `InitializeShaderCompilerOptions`, `ShaderCompileErrorKind`, `ShaderDiagnostic`.                                                    |
+| `@ghostty-webgpu/shaderc/runtime` | `FULLSCREEN_VERTEX_GLSL`, `FULLSCREEN_VERTEX_WGSL`, `packShaderUniforms`, `SHADER_UNIFORM_BYTE_LENGTH`, `SHADER_UNIFORM_FIELDS`. Types: `CompiledGhosttyShader`, `ShaderUniformField`, `ShaderUniformValues`, `ShaderVector2`, `ShaderVector3`, `ShaderVector4`. |
 
 Both entry points are ES modules with `sideEffects: false`.
 

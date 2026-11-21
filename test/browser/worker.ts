@@ -1,4 +1,4 @@
-import { compileGhosttyShader } from 'ghostty-web-shaderc'
+import { compileGhosttyShader } from '@ghostty-webgpu/shaderc'
 
 self.onmessage = async (event: MessageEvent<string>) => {
   try {

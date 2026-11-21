@@ -96,8 +96,8 @@ async function verifyRuntimeOnly(consumer: string, signal: AbortSignal): Promise
   const disabled = join(consumer, 'node_modules/.naga-wasm-disabled')
   await writeFile(
     join(consumer, 'runtime-only.mjs'),
-    `import { compileGhosttyShader, initializeShaderCompiler } from 'ghostty-web-shaderc';
-import { packShaderUniforms, FULLSCREEN_VERTEX_WGSL } from 'ghostty-web-shaderc/runtime';
+    `import { compileGhosttyShader, initializeShaderCompiler } from '@ghostty-webgpu/shaderc';
+import { packShaderUniforms, FULLSCREEN_VERTEX_WGSL } from '@ghostty-webgpu/shaderc/runtime';
 if (typeof compileGhosttyShader !== 'function' || typeof initializeShaderCompiler !== 'function') throw new Error('Invalid lazy compiler exports');
 if (!(packShaderUniforms() instanceof ArrayBuffer) || !FULLSCREEN_VERTEX_WGSL.includes('@vertex')) throw new Error('Invalid runtime exports');
 `,
@@ -114,8 +114,8 @@ if (!(packShaderUniforms() instanceof ArrayBuffer) || !FULLSCREEN_VERTEX_WGSL.in
 async function verifyRuntimeCompilation(consumer: string, signal: AbortSignal): Promise<void> {
   await writeFile(
     join(consumer, 'smoke.mjs'),
-    `import { compileGhosttyShader } from 'ghostty-web-shaderc';
-import { packShaderUniforms } from 'ghostty-web-shaderc/runtime';
+    `import { compileGhosttyShader } from '@ghostty-webgpu/shaderc';
+import { packShaderUniforms } from '@ghostty-webgpu/shaderc/runtime';
 const source = ${JSON.stringify(shaderSource)};
 const shaders = await Promise.all(Array.from({length: 4}, () => compileGhosttyShader(source)));
 for (const shader of shaders) {
@@ -129,7 +129,7 @@ if (!(packShaderUniforms({ iTime: 1 }) instanceof ArrayBuffer)) throw new Error(
 }
 
 async function verifyCli(consumer: string, signal: AbortSignal): Promise<void> {
-  const cli = join(consumer, 'node_modules/ghostty-web-shaderc/dist/cli.js')
+  const cli = join(consumer, 'node_modules/@ghostty-webgpu/shaderc/dist/cli.js')
   await writeFile(join(consumer, 'shader.glsl'), shaderSource)
   checkArtifact((await command(['node', cli, 'shader.glsl'], consumer, signal)).stdout)
   await command(['node', cli, 'shader.glsl', '--out', 'shader.json'], consumer, signal)
@@ -156,7 +156,7 @@ async function prepareConsumer(scratch: string, signal: AbortSignal): Promise<st
       name: 'shaderc-packed-consumer',
       private: true,
       type: 'module',
-      dependencies: { 'ghostty-web-shaderc': `file:../${tarball}` },
+      dependencies: { '@ghostty-webgpu/shaderc': `file:../${tarball}` },
     }),
   )
   await command(['npm', 'install', '--ignore-scripts', '--no-audit', '--no-fund'], consumer, signal)

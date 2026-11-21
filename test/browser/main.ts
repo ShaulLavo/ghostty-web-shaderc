@@ -1,4 +1,4 @@
-import { compileGhosttyShader } from 'ghostty-web-shaderc'
+import { compileGhosttyShader } from '@ghostty-webgpu/shaderc'
 import { assertPixels, inputPixels, pixelCases, uniformBuffer } from './cases.js'
 import { WebGlRenderer } from './webgl.js'
 import { WebGpuRenderer } from './webgpu.js'

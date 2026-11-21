@@ -1,4 +1,4 @@
-import type { CompiledGhosttyShader } from 'ghostty-web-shaderc'
+import type { CompiledGhosttyShader } from '@ghostty-webgpu/shaderc'
 
 export interface PacingFrame {
   readonly id: number

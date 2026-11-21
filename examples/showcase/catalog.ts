@@ -1,4 +1,4 @@
-import type { CompiledGhosttyShader } from 'ghostty-web-shaderc'
+import type { CompiledGhosttyShader } from '@ghostty-webgpu/shaderc'
 import { compileExample as compileRegular } from './entries/regular.js'
 import regularTypescript from './entries/regular.ts?raw'
 import regularSource from './shaders/regular.glsl?raw'

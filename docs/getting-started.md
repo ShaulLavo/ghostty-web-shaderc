@@ -9,7 +9,7 @@ You need Node 24.12 or later. That is the `engines` floor in `package.json`, and
 The package is not on npm yet. Install the tarball from the v0.0.2 release:
 
 ```sh
-npm install https://github.com/ShaulLavo/ghostty-web-shaderc/releases/download/v0.0.2/ghostty-web-shaderc-0.0.2.tgz
+npm install @ghostty-webgpu/shaderc
 ```
 
 pnpm, Yarn 1, and Bun install the same URL too. See [Package managers](../README.md#package-managers).
@@ -19,7 +19,7 @@ pnpm, Yarn 1, and Bun install the same URL too. See [Package managers](../README
 Save this as `step1.mts`. The shader multiplies the terminal texture by a pulse that follows `iTime`.
 
 ```ts
-import { compileGhosttyShader } from 'ghostty-web-shaderc'
+import { compileGhosttyShader } from '@ghostty-webgpu/shaderc'
 
 const source = `
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
@@ -62,7 +62,7 @@ true
 Save this as `step2.mts`. The shader uses a variable that does not exist.
 
 ```ts
-import { compileGhosttyShader, ShaderCompileError } from 'ghostty-web-shaderc'
+import { compileGhosttyShader, ShaderCompileError } from '@ghostty-webgpu/shaderc'
 
 try {
   await compileGhosttyShader(
@@ -100,7 +100,7 @@ Line 2, column 22 is a position in your source. The compiler adds a prefix and a
 Save this as `step3.mts`. Your shader reads uniforms such as `iResolution` and `iTime` from one buffer. The `/runtime` export fills that buffer for you.
 
 ```ts
-import { packShaderUniforms, SHADER_UNIFORM_BYTE_LENGTH } from 'ghostty-web-shaderc/runtime'
+import { packShaderUniforms, SHADER_UNIFORM_BYTE_LENGTH } from '@ghostty-webgpu/shaderc/runtime'
 
 const bytes = packShaderUniforms({ iResolution: [800, 600, 1], iTime: 1.5 })
 

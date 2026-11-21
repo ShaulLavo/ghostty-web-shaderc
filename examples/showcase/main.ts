@@ -1,4 +1,4 @@
-import type { CompiledGhosttyShader } from 'ghostty-web-shaderc'
+import type { CompiledGhosttyShader } from '@ghostty-webgpu/shaderc'
 import { examples } from './catalog.js'
 import { showCode } from './code-view.js'
 import type { CodeLanguage } from './code-view.js'
