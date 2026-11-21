@@ -1,4 +1,4 @@
-import { compileGhosttyShader } from 'ghostty-web-shaderc'
+import { compileGhosttyShader } from '@ghostty-webgpu/shaderc'
 import source from '../shaders/cursor-lightning.glsl?raw'
 
 export function compileExample() {

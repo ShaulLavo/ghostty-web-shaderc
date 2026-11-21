@@ -1,5 +1,5 @@
-import type { CompiledGhosttyShader } from 'ghostty-web-shaderc'
-import { FULLSCREEN_VERTEX_GLSL } from 'ghostty-web-shaderc/runtime'
+import type { CompiledGhosttyShader } from '@ghostty-webgpu/shaderc'
+import { FULLSCREEN_VERTEX_GLSL } from '@ghostty-webgpu/shaderc/runtime'
 import { height, inputPixels, width } from './cases.js'
 
 function requireResource<T>(resource: T | null, description: string): T {

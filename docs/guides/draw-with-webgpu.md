@@ -5,12 +5,12 @@ This guide draws a compiled shader onto a canvas with the WebGPU API. It assumes
 The input texture is a 2x2 test image so you can see the result without a terminal. Replace it with your own texture. Row zero of that texture must be the bottom row of the picture. See [texture orientation](../concepts/how-it-works.md#texture-orientation).
 
 ```ts
-import { compileGhosttyShader } from 'ghostty-web-shaderc'
+import { compileGhosttyShader } from '@ghostty-webgpu/shaderc'
 import {
   FULLSCREEN_VERTEX_WGSL,
   packShaderUniforms,
   SHADER_UNIFORM_BYTE_LENGTH,
-} from 'ghostty-web-shaderc/runtime'
+} from '@ghostty-webgpu/shaderc/runtime'
 
 const source = `
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {

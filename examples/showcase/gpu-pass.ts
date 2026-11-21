@@ -1,9 +1,9 @@
-import type { CompiledGhosttyShader } from 'ghostty-web-shaderc'
+import type { CompiledGhosttyShader } from '@ghostty-webgpu/shaderc'
 import {
   FULLSCREEN_VERTEX_GLSL,
   FULLSCREEN_VERTEX_WGSL,
   SHADER_UNIFORM_BYTE_LENGTH,
-} from 'ghostty-web-shaderc/runtime'
+} from '@ghostty-webgpu/shaderc/runtime'
 
 type ShaderPassErrorHandler = (cause: unknown) => void
 

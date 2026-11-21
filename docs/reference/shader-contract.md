@@ -39,7 +39,7 @@ Both outputs use 32-bit floats. Diagnostics report positions in your source, not
 | `fragCoord`         | UV multiplied by `iResolution.xy`, in physical pixels from the bottom left.                    |
 | `gl_FragCoord`      | Same XY as `fragCoord`, with Z zero and W one.                                                 |
 | `dFdy`              | WebGPU output negates `dFdy`, `dFdyFine`, and `dFdyCoarse` so the GLSL direction is preserved. |
-| Vertex shaders      | `FULLSCREEN_VERTEX_WGSL` and `FULLSCREEN_VERTEX_GLSL` from `ghostty-web-shaderc/runtime`.      |
+| Vertex shaders      | `FULLSCREEN_VERTEX_WGSL` and `FULLSCREEN_VERTEX_GLSL` from `@ghostty-webgpu/shaderc/runtime`.  |
 | Draw call           | One triangle, three vertices, no vertex buffers.                                               |
 | WebGPU entry points | Vertex `main`, fragment `main`.                                                                |
 | WebGL vertex output | Named `_vs2fs_location0`, matching the generated fragment input.                               |

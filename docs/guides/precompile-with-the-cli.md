@@ -40,10 +40,10 @@ The JSON has the same shape as the result of `compileGhosttyShader`. Pass it to 
 
 ```ts
 import shader from './shaders/crt.shader.json' with { type: 'json' }
-import { packShaderUniforms } from 'ghostty-web-shaderc/runtime'
+import { packShaderUniforms } from '@ghostty-webgpu/shaderc/runtime'
 ```
 
-The `/runtime` export has no dependency on the compiler. A page that imports only `/runtime` and precompiled JSON never loads the WASM file. Import `ghostty-web-shaderc/runtime`, not the package root, because a bundler follows the root's dynamic import of `naga-wasm` and emits the WASM file.
+The `/runtime` export has no dependency on the compiler. A page that imports only `/runtime` and precompiled JSON never loads the WASM file. Import `@ghostty-webgpu/shaderc/runtime`, not the package root, because a bundler follows the root's dynamic import of `naga-wasm` and emits the WASM file.
 
 The JSON is tied to the package version that wrote it. It carries `schemaVersion: 1` and `uniformLayout: 'ghostty-v1'`. Check both fields before you trust a JSON file from another build, and regenerate the files when you upgrade the package.
 

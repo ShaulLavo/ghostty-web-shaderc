@@ -3,7 +3,7 @@
 Compile Ghostty and ShaderToy GLSL strings to WebGPU WGSL and WebGL2 GLSL, at runtime, in the browser or in Node.
 
 ```ts
-import { compileGhosttyShader } from 'ghostty-web-shaderc'
+import { compileGhosttyShader } from '@ghostty-webgpu/shaderc'
 
 const shader = await compileGhosttyShader(`
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
@@ -61,7 +61,7 @@ The package is not on npm yet. Install the tarball from the [v0.0.2 release](htt
 1. Install it.
 
    ```sh
-   npm install https://github.com/ShaulLavo/ghostty-web-shaderc/releases/download/v0.0.2/ghostty-web-shaderc-0.0.2.tgz
+   npm install @ghostty-webgpu/shaderc
    ```
 
    The same URL installs with `pnpm add`, `yarn add`, and `bun add`. See [Package managers](#package-managers).
@@ -106,7 +106,7 @@ Install the same tarball into your web project and import the package from your 
 
 ```ts
 // main.ts
-import { compileGhosttyShader } from 'ghostty-web-shaderc'
+import { compileGhosttyShader } from '@ghostty-webgpu/shaderc'
 
 const shader = await compileGhosttyShader(`
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {

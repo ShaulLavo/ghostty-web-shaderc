@@ -1,10 +1,10 @@
-import type { CompiledGhosttyShader } from 'ghostty-web-shaderc'
+import type { CompiledGhosttyShader } from '@ghostty-webgpu/shaderc'
 import {
   packShaderUniforms,
   SHADER_UNIFORM_BYTE_LENGTH,
   type ShaderVector4,
   type ShaderUniformValues,
-} from 'ghostty-web-shaderc/runtime'
+} from '@ghostty-webgpu/shaderc/runtime'
 import {
   fitTerminalFont,
   Terminal,
